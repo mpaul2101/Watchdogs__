@@ -6,7 +6,10 @@ import paho.mqtt.client as mqtt
 BROKER = "localhost"
 TOPIC = "metrics/cpu"
 
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "python-agent")
+client = mqtt.Client(
+    callback_api_version=mqtt.CallbackAPIVersion.VERSION2, 
+    client_id="python-agent"
+)
 client.connect(BROKER, 1883)
 
 print("Agent pornit...")
