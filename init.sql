@@ -1,4 +1,4 @@
--- 1. Tabelul pentru date brute (Munca colegului)
+
 CREATE TABLE IF NOT EXISTS metrics (
     id SERIAL PRIMARY KEY,
     server_id VARCHAR(50) NOT NULL,
