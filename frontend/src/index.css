@@ -1,0 +1,126 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0b0f14;
+  color: #e5e7eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h1, h2 {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(0, 255, 156, 0.08), transparent 25%),
+    radial-gradient(circle at bottom left, rgba(34, 211, 238, 0.08), transparent 25%),
+    #0b0f14;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid #1f2937;
+  background: rgba(17, 24, 39, 0.85);
+  border-radius: 14px;
+  box-shadow: 0 0 20px rgba(0, 255, 156, 0.08);
+}
+
+.dashboard-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #00ff9c;
+  letter-spacing: 1px;
+}
+
+.dashboard-subtitle {
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.status-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #00ff9c;
+  color: #00ff9c;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(0, 255, 156, 0.08);
+}
+
+.panel {
+  margin-bottom: 24px;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #1f2937;
+  background: rgba(17, 24, 39, 0.9);
+  box-shadow: 0 0 18px rgba(0, 255, 156, 0.05);
+}
+
+.panel-title {
+  margin-bottom: 16px;
+  font-size: 20px;
+  color: #22d3ee;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.metric-card {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  background: #0f172a;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 16px rgba(0, 255, 156, 0.12);
+}
+
+.metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.metric-server {
+  font-weight: 700;
+  color: #f9fafb;
+}
+
+.metric-live {
+  font-size: 11px;
+  color: #00ff9c;
+  border: 1px solid #00ff9c;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.metric-line {
+  margin-bottom: 8px;
+  color: #d1d5db;
+}
+
+.metric-label {
+  color: #9ca3af;
+  margin-right: 6px;
+}
+
+.empty-text {
+  color: #9ca3af;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getMetrics } from "../services/api";
+import MetricCard from "./MetricCard";
 
 function MetricsPanel() {
   const [metrics, setMetrics] = useState([]);
@@ -21,41 +22,25 @@ function MetricsPanel() {
     loadMetrics();
   }, []);
 
-  if (loading) {
-    return (
-      <div>
-        <h2>Metrics</h2>
-        <p>Loading metrics...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div>
-        <h2>Metrics</h2>
-        <p>{error}</p>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <h2>Metrics</h2>
+    <div className="panel">
+      <h2 className="panel-title">System Metrics</h2>
 
-      {metrics.length === 0 ? (
-        <p>No metrics found</p>
-      ) : (
-        <ul>
-          {metrics.map((metric) => (
-            <li key={metric.id}>
-              <strong>Server:</strong> {metric.server_id} |{" "}
-              <strong>CPU:</strong> {metric.cpu} |{" "}
-              <strong>RAM:</strong> {metric.ram ?? "N/A"} |{" "}
-              <strong>Time:</strong> {new Date(metric.timestamp).toLocaleString()}
-            </li>
-          ))}
-        </ul>
+      {loading && <p className="empty-text">Loading metrics...</p>}
+      {error && <p className="empty-text">{error}</p>}
+
+      {!loading && !error && (
+        <>
+          {metrics.length === 0 ? (
+            <p className="empty-text">No metrics found</p>
+          ) : (
+            <div className="metrics-grid">
+              {metrics.map((metric) => (
+                <MetricCard key={metric.id} metric={metric} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
