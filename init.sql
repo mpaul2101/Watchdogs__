@@ -56,13 +56,15 @@ CREATE TABLE IF NOT EXISTS incidents (
     title VARCHAR(200),
     severity VARCHAR(20),        -- 'CRITIC', 'HIGH', 'MEDIUM', 'LOW'
     status VARCHAR(20) DEFAULT 'OPEN',
-    assigned_to VARCHAR(50),
+    assigned_team VARCHAR(50),   -- echipa responsabila (ex: 'Infrastructure')
+    assigned_to VARCHAR(50),     -- inginer specific in cadrul echipei (optional)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS server_id VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS metric_type VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_team VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- Cautare rapida pentru deduplicare: "exista deja un OPEN pentru asta?"
