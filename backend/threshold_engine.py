@@ -55,6 +55,20 @@ RULES = [
 ]
 
 
+# --- ROUTING: ce echipa primeste incidentul in functie de metrica ---
+# Strategia este auto-assign la creare; UI-ul poate face reassign manual ulterior.
+ROUTING = {
+    "CPU":            "Infrastructure",
+    "RAM":            "Infrastructure",
+    "DISK":           "Infrastructure",
+    "RESPONSE_TIME":  "Backend",
+    "HTTP_5XX":       "Backend",
+    "DB_CONN_POOL":   "Database",
+    "AUTH_FAILURES":  "Security",
+}
+DEFAULT_TEAM = "Infrastructure"  # fallback daca apare o metric_type necunoscuta
+
+
 def _evaluate_rule(cursor, server_id: str, rule: dict) -> bool:
     """
     Verifica daca o regula este indeplinita pentru un server.
@@ -136,13 +150,14 @@ def _find_open_incident(cursor, server_id: str, metric_type: str) -> Optional[tu
 
 def _create_incident(cursor, server_id: str, metric_type: str, severity: str) -> int:
     title = f"[{severity}] {metric_type} pe {server_id}"
+    team = ROUTING.get(metric_type, DEFAULT_TEAM)
     cursor.execute(
         """
-        INSERT INTO incidents (server_id, metric_type, title, severity, status)
-        VALUES (%s, %s, %s, %s, 'OPEN')
+        INSERT INTO incidents (server_id, metric_type, title, severity, status, assigned_team)
+        VALUES (%s, %s, %s, %s, 'OPEN', %s)
         RETURNING id
         """,
-        (server_id, metric_type, title, severity),
+        (server_id, metric_type, title, severity, team),
     )
     return cursor.fetchone()[0]
 

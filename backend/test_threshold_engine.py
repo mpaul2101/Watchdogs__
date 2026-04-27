@@ -62,6 +62,17 @@ def get_incident_severity(conn, server_id, metric_type):
     return row[0] if row else None
 
 
+def get_incident_team(conn, server_id, metric_type):
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT assigned_team FROM incidents WHERE server_id=%s AND metric_type=%s AND status='OPEN'",
+        (server_id, metric_type),
+    )
+    row = cur.fetchone()
+    cur.close()
+    return row[0] if row else None
+
+
 def test_instant_critic_creates_incident_and_alarm(conn):
     server = "TEST-instant"
     cleanup(conn)
@@ -148,6 +159,35 @@ def test_sustained_window_requires_full_coverage(conn):
     print("  [OK] fereastra acoperita 6 min @99% -> CPU CRITIC")
 
 
+def test_routing_assigns_team_per_metric(conn):
+    cleanup(conn)
+    # RAM > 95% -> CRITIC RAM -> echipa Infrastructure
+    insert_metric(conn, "TEST-route-A", ram=96)
+    evaluate(conn, "TEST-route-A")
+    team_ram = get_incident_team(conn, "TEST-route-A", "RAM")
+    assert team_ram == "Infrastructure", f"asteptat Infrastructure pentru RAM, gasit {team_ram}"
+
+    # disk > 95% pe alt server -> tot Infrastructure
+    insert_metric(conn, "TEST-route-B", disk=96)
+    evaluate(conn, "TEST-route-B")
+    team_disk = get_incident_team(conn, "TEST-route-B", "DISK")
+    assert team_disk == "Infrastructure", f"asteptat Infrastructure pentru DISK, gasit {team_disk}"
+
+    # http_5xx > 5% -> echipa Backend
+    insert_metric(conn, "TEST-route-C", http_5xx_rate=10)
+    evaluate(conn, "TEST-route-C")
+    team_http = get_incident_team(conn, "TEST-route-C", "HTTP_5XX")
+    assert team_http == "Backend", f"asteptat Backend pentru HTTP_5XX, gasit {team_http}"
+
+    # db_conn_pct > 90% -> echipa Database
+    insert_metric(conn, "TEST-route-D", db_conn_pct=95)
+    evaluate(conn, "TEST-route-D")
+    team_db = get_incident_team(conn, "TEST-route-D", "DB_CONN_POOL")
+    assert team_db == "Database", f"asteptat Database pentru DB_CONN_POOL, gasit {team_db}"
+
+    print("  [OK] routing: fiecare metrica primeste echipa corecta")
+
+
 def test_dip_in_window_blocks_trigger(conn):
     server = "TEST-dip"
     cleanup(conn)
@@ -172,6 +212,7 @@ def main():
             test_below_threshold_does_nothing,
             test_sustained_window_requires_full_coverage,
             test_dip_in_window_blocks_trigger,
+            test_routing_assigns_team_per_metric,
         ]
         for t in tests:
             print(f"\n>> {t.__name__}")
