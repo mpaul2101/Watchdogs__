@@ -73,7 +73,7 @@ def on_message_received(client, userdata, msg):
         # UTC, naive: agentul trimite unix epoch (UTC); DB stocheaza TIMESTAMP
         # without time zone si query-urile motorului folosesc LOCALTIMESTAMP
         # (returneaza UTC daca containerul Postgres ruleaza in UTC).
-        dt_timestamp = datetime.fromtimestamp(payload["timestamp"], tz=timezone.utc).replace(tzinfo=None)
+        dt_timestamp = datetime.fromtimestamp(payload["timestamp"])
 
         # 4. Salvam in DB si rulam motorul de praguri pe aceeasi conexiune
         conn = get_db_connection()
