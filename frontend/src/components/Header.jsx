@@ -1,0 +1,68 @@
+import { useState, useEffect } from 'react';
+
+// Sub-componentă: iconul de ochi pentru logo
+function WatchEye() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3b82f6" strokeWidth="1.6">
+      <path d="M2 12 C 6 5, 18 5, 22 12 C 18 19, 6 19, 2 12 Z" />
+      <circle cx="12" cy="12" r="3.4" fill="#3b82f6" stroke="none" />
+      <circle cx="13" cy="11" r="1" fill="#0a0c0f" stroke="none" />
+      <line x1="12" y1="3" x2="12" y2="6" stroke="#3b82f6" />
+    </svg>
+  );
+}
+
+// Hook custom pentru clock care se actualizează la fiecare secundă
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  
+  useEffect(() => {
+    const intervalId = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  return now;
+}
+
+export function Header({ globalState, openCount, critCount }) {
+  const now = useClock();
+  
+  // Formatare ora "HH:MM:SS UTC"
+  const pad = (n) => String(n).padStart(2, '0');
+  const clock = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  
+  // Eticheta status-ului
+  const statusLabel = globalState === 'ok' 
+    ? 'ALL SYSTEMS NORMAL'
+    : globalState === 'warn' 
+    ? 'DEGRADED'
+    : 'INCIDENTS ACTIVE';
+  
+  return (
+    <header className="header">
+      {/* Logo + brand */}
+      <div className="header-brand">
+        <div className="header-brand-mark"><WatchEye /></div>
+        <div className="header-brand-name">WATCHDOGS</div>
+      </div>
+      
+      {/* Status global cu dot pulsant */}
+      <div className={`header-status ${globalState}`}>
+        <span className="dot" />
+        <span className="label">{statusLabel}</span>
+        <span className="mono" style={{ color: 'var(--fg-3)' }}>·</span>
+        <span className="mono">{critCount} crit · {openCount} open</span>
+      </div>
+      
+      {/* Meta info dreapta */}
+      <div className="header-meta">
+        <span className="uptime">poll <span>5s</span></span>
+        <span className="clock mono">{clock}</span>
+        <span className="user">
+          <span className="user-avatar">MP</span>
+          <span className="mono">m.petrescu</span>
+        </span>
+      </div>
+    </header>
+  );
+}
