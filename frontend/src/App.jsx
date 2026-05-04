@@ -1,7 +1,13 @@
-import DashboardPage from "./pages/DashboardPage";
+import { useState } from 'react';
 
-function App() {
-  return <DashboardPage />;
+export function App() {
+  const [page, setPage] = useState('dash');
+
+  return (
+    <div className="app">
+      <h1>Watchdogs</h1>
+      <p>Dashboard în construcție...</p>
+      <p>Pagina curentă: {page}</p>
+    </div>
+  );
 }
-
-export default App;

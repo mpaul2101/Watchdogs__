@@ -1,0 +1,88 @@
+/* ===========================================
+   GLOBAL VARIABLES & RESET
+   =========================================== */
+
+:root {
+  /* === BACKGROUNDS === */
+  --bg-1: #0a0c0f;       /* fundal principal (cel mai întunecat) */
+  --bg-2: #11141a;       /* fundal secundar (panouri, cards) */
+  --bg-3: #181c24;       /* fundal terțiar (hover, accent) */
+  --bg-4: #20252f;       /* fundal subtil (border, separatori) */
+  
+  /* === FOREGROUNDS === */
+  --fg-1: #e6e9ed;       /* text principal (alb-gri) */
+  --fg-2: #9aa3b2;       /* text secundar (mai puțin important) */
+  --fg-3: #5b6473;       /* text terțiar (placeholders, labels) */
+  
+  /* === BORDERS === */
+  --border-1: #1f242d;   /* borders subtile */
+  --border-2: #2a313e;   /* borders mai vizibile */
+  
+  /* === SEVERITY COLORS === */
+  --sev-critical: #ef4444;       /* roșu */
+  --sev-high: #f97316;           /* portocaliu */
+  --sev-medium: #eab308;         /* galben */
+  --sev-low: #64748b;            /* gri-albastru */
+  
+  /* === SEVERITY BACKGROUNDS (pentru hover, badges) === */
+  --sev-critical-bg: rgba(239, 68, 68, 0.12);
+  --sev-high-bg: rgba(249, 115, 22, 0.12);
+  --sev-medium-bg: rgba(234, 179, 8, 0.12);
+  --sev-low-bg: rgba(100, 116, 139, 0.12);
+  
+  /* === ACCENT === */
+  --accent: #3b82f6;       /* albastru pentru linkuri, hover, focus */
+  --accent-bg: rgba(59, 130, 246, 0.12);
+  
+  /* === FONT === */
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* === RESET (modern, minim) === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+input:focus, textarea:focus, button:focus {
+  outline: none;
+}
+
+/* === UTILITY === */
+.mono {
+  font-family: var(--font-mono);
+}
