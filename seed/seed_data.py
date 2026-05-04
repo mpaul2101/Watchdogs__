@@ -230,18 +230,31 @@ if __name__ == "__main__":
     client = create_mqtt_client()
     time.sleep(1)
     
-    # Test: trimitem o mostra pentru fiecare dispozitiv (cu timestamp curent)
-    print(f"\n[TEST] Trimitem {len(inventory)} mostre prin MQTT...\n")
+    # Mod LIVE: trimitem mostre la fiecare 4 secunde, ca un agent real.
+    # Pastram ultima mostra per dispozitiv pentru random walk continuu.
+    last_samples: dict[str, dict] = {}
     
-    now = datetime.now()
-    for device in inventory:
-        sample = generate_metric_sample(device, now, previous=None)
-        publish_sample(client, sample)
-        print(f"  → {sample['server_id']:<35} CPU={sample['cpu']:<6} RAM={sample['ram']:<6} DISK={sample['disk']}")
+    print("\n[LIVE] Trimitem mostre la fiecare 4 secunde. Apasa Ctrl+C pentru oprire.\n")
     
-    # Asteapta sa se trimita toate mesajele
-    time.sleep(2)
+    iteration = 0
+    try:
+        while True:
+            iteration += 1
+            now = datetime.now()
+            
+            for device in inventory:
+                previous = last_samples.get(device.server_id)
+                sample = generate_metric_sample(device, now, previous)
+                publish_sample(client, sample)
+                last_samples[device.server_id] = sample
+            
+            print(f"[Iteratia {iteration:4d} @ {now.strftime('%H:%M:%S')}] Trimise {len(inventory)} mostre")
+            time.sleep(4)
     
-    client.loop_stop()
-    client.disconnect()
-    print("\n[OK] Toate mesajele trimise. Verifica DB-ul!")
+    except KeyboardInterrupt:
+        print("\n\n[INFO] Oprire seed...")
+    finally:
+        time.sleep(1)
+        client.loop_stop()
+        client.disconnect()
+        print(f"[OK] Seed inchis. Total iteratii: {iteration}")
