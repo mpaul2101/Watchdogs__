@@ -70,3 +70,53 @@ ALTER TABLE incidents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURR
 -- Cautare rapida pentru deduplicare: "exista deja un OPEN pentru asta?"
 CREATE INDEX IF NOT EXISTS idx_incidents_open_lookup
     ON incidents (server_id, metric_type, status);
+
+CREATE OR REPLACE FUNCTION get_infrastructure_health()
+RETURNS TABLE (
+    server_id VARCHAR,
+    health_status VARCHAR,
+    avg_cpu NUMERIC,
+    avg_ram NUMERIC,
+    avg_disk NUMERIC,
+    max_cpu NUMERIC,
+    max_ram NUMERIC,
+    open_incidents BIGINT,
+    last_seen TIMESTAMP
+
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        m.server_id::VARCHAR,
+        CASE
+            WHEN MAX(m.cpu) > 90 OR MAX(m.ram) > 90 OR MAX(m.disk) > 90 
+                THEN 'CRITIC'::VARCHAR
+            WHEN AVG(m.cpu) > 70 OR AVG(m.ram) > 70 OR AVG(m.disk) > 70 
+                THEN 'WARNING'::VARCHAR
+            ELSE 'OK'::VARCHAR
+        END AS health_status,
+        ROUND(AVG(m.cpu), 1) AS avg_cpu,
+        ROUND(AVG(m.ram), 1) AS avg_ram,
+        ROUND(AVG(m.disk), 1) AS avg_disk,
+        ROUND(MAX(m.cpu), 1) AS max_cpu,
+        ROUND(MAX(m.ram), 1) AS max_ram,
+        (
+            SELECT COUNT(*)
+            FROM incidents i
+            WHERE i.server_id = m.server_id AND i.status = 'OPEN'
+        ) AS open_incidents,
+        MAX(m.timestamp) AS last_seen
+    FROM metrics m
+    WHERE m.timestamp >= LOCALTIMESTAMP - INTERVAL '5 minutes'
+    GROUP BY m.server_id
+    ORDER BY 
+        CASE
+            WHEN MAX(m.cpu) > 90 OR MAX(m.ram) > 90 THEN 1
+            WHEN AVG(m.cpu) > 70 OR AVG(m.ram) > 70 THEN 2
+            ELSE 3
+        END,
+        m.server_id;
+END;
+$$;
