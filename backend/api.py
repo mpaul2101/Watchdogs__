@@ -197,3 +197,14 @@ def update_incident(incident_id: int, body: IncidentUpdate):
 def get_teams():
     """Returneaza lista echipelor disponibile pentru atribuire (din ROUTING)."""
     return sorted(set(ROUTING.values()))
+
+@app.get("/api/health")
+def get_infrastructure_health():
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("SELECT * FROM get_infrastructure_health();")
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
