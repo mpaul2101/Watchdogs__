@@ -5,14 +5,14 @@ import { IncidentCard } from './IncidentCard.jsx';
 import { IncidentsFilters } from './IncidentsFilters.jsx';
 import { ReassignModal } from './ReassignModal.jsx';
 
-export function IncidentsList() {
+export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
   const [filters, setFilters] = useState({
     severity: null,
     status: null,
     team: null,
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [reassigningIncident, setReassigningIncident] = useState(null);  // ← NOU
+  const [reassigningIncident, setReassigningIncident] = useState(null);
   
   const { data: incidents, loading, error, refresh } = useApiData(
     () => fetchIncidents(filters),
@@ -32,7 +32,6 @@ export function IncidentsList() {
     );
   }) || [];
   
-  // ... loading și error states la fel ca înainte ...
   if (loading && !incidents) {
     return (
       <div className="panel incidents">
@@ -95,6 +94,8 @@ export function IncidentsList() {
                 <IncidentCard
                   key={incident.id}
                   incident={incident}
+                  isSelected={incident.id === selectedIncidentId}
+                  onClick={() => onIncidentSelect && onIncidentSelect(incident)}
                   onReassign={setReassigningIncident}
                   onUpdate={refresh}
                 />

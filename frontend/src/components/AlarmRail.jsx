@@ -5,7 +5,7 @@ import { AlarmRow } from './AlarmRow.jsx';
 
 const SEVERITY_FILTERS = ['all', 'CRITIC', 'HIGH', 'MEDIUM', 'LOW'];
 
-export function AlarmRail() {
+export function AlarmRail({ onClose }) {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [paused, setPaused] = useState(false);
   
@@ -30,12 +30,19 @@ export function AlarmRail() {
     <div className="panel alarms">
       <div className="panel-header">
         <span className="ph-title">Alarm Stream</span>
-        <span className="ph-meta">
+        <span className="ph-meta" style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', marginRight: '8px' }}>
           <span style={{ color: 'var(--sev-critical)' }}>{counts.critical}</span>
           <span style={{ color: 'var(--sev-high)' }}>{counts.high}</span>
           <span style={{ color: 'var(--sev-medium)' }}>{counts.medium}</span>
           <span style={{ color: 'var(--sev-low)' }}>{counts.low}</span>
         </span>
+        {onClose && (
+          <button className="ip-close" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
+              <path d="M4 4 L12 12 M12 4 L4 12" />
+            </svg>
+          </button>
+        )}
       </div>
       
       <div className="alarm-controls">

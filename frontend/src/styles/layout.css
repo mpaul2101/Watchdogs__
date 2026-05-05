@@ -17,10 +17,37 @@
 
 .main {
   overflow: hidden;
-  display: grid;
-  grid-template-columns: 1fr 1fr 320px;   /* heatmap | incidents | alarms */
-  gap: 1px;
+  display: flex;
+  position: relative;
   background: var(--border-1);
+  gap: 1px;
+}
+
+.main-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.main-right {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border-left: 1px solid var(--border-1);
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0.5; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.slide-in {
+  animation: slideIn 0.2s ease-out forwards;
 }
 
 .main.full {

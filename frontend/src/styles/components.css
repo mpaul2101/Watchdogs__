@@ -57,7 +57,8 @@
   gap: 1px;
   padding: 8px;
   background: var(--border-1);
-  flex: 1;
+  flex-shrink: 0;
+  max-height: 40vh; /* Optional: avoid taking too much space if there are many servers */
   overflow-y: auto;
 }
 
@@ -188,6 +189,8 @@
 .incidents {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .filters {
@@ -1058,4 +1061,265 @@
   width: 100%;
   height: 16px;
   display: block;
+}
+
+/* ===========================================
+   INCIDENT PANEL
+   =========================================== */
+
+.incident-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-1);
+}
+
+.ip-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-1);
+  background: var(--bg-2);
+}
+
+.ip-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ip-id {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+  letter-spacing: 0.05em;
+}
+
+.ip-close {
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.ip-close:hover {
+  color: var(--fg-1);
+}
+
+.ip-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--fg-1);
+  margin-bottom: 12px;
+  line-height: 1.3;
+}
+
+.ip-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.ip-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.ip-status-dot.sev-critical { background: var(--sev-critical); }
+.ip-status-dot.sev-high { background: var(--sev-high); }
+.ip-status-dot.sev-medium { background: var(--sev-medium); }
+
+.ip-sev-text.sev-critical { color: var(--sev-critical); font-weight: 600; }
+.ip-sev-text.sev-high { color: var(--sev-high); font-weight: 600; }
+.ip-sev-text.sev-medium { color: var(--sev-medium); font-weight: 600; }
+
+.ip-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ip-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ip-sec-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-3);
+  letter-spacing: 0.08em;
+}
+
+.ip-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border-1);
+  border: 1px solid var(--border-1);
+}
+
+.ip-snap-box {
+  background: var(--bg-2);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ip-snap-box .label {
+  font-size: 9px;
+  color: var(--fg-3);
+  letter-spacing: 0.05em;
+}
+
+.ip-snap-box .val {
+  font-size: 11px;
+  color: var(--fg-1);
+  font-weight: 500;
+}
+
+.ip-history-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ih-bars {
+  display: flex;
+  gap: 2px;
+  height: 24px;
+}
+
+.ih-bar {
+  flex: 1;
+}
+
+.ih-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--fg-3);
+}
+
+.ip-alarms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border-1);
+  border: 1px solid var(--border-1);
+}
+
+.ip-alarm-row {
+  display: grid;
+  grid-template-columns: 60px 12px 1fr 60px;
+  gap: 8px;
+  background: var(--bg-2);
+  padding: 8px 10px;
+  font-size: 11px;
+  align-items: start;
+}
+
+.ip-alarm-row .time { color: var(--fg-3); }
+.ip-alarm-row .dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 4px; }
+.ip-alarm-row .msg { color: var(--fg-2); line-height: 1.3; }
+.ip-alarm-row .msg .val { font-weight: 500; }
+.ip-alarm-row .id { color: var(--fg-3); text-align: right; }
+
+.ip-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-2);
+}
+
+.tl-item {
+  position: relative;
+  padding-left: 16px;
+}
+
+.tl-icon {
+  position: absolute;
+  left: -21px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-1);
+}
+
+.tl-icon.blue { background: #3b82f6; }
+.tl-icon.red { background: var(--sev-critical); }
+.tl-icon.gray { background: var(--fg-3); }
+
+.tl-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-content .time { font-size: 10px; color: var(--fg-3); }
+.tl-content .text { font-size: 11px; color: var(--fg-1); line-height: 1.4; }
+.tl-content .author { font-size: 10px; color: var(--fg-3); }
+
+.ip-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-1);
+  background: var(--bg-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ip-status-group {
+  display: flex;
+  gap: 1px;
+  background: var(--border-1);
+  border: 1px solid var(--border-1);
+}
+
+.ip-btn-status {
+  background: var(--bg-2);
+  border: none;
+  padding: 6px 12px;
+  font-size: 10px;
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.ip-btn-status.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.ip-actions-group {
+  display: flex;
+  gap: 8px;
+}
+
+.ip-btn-action {
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  color: var(--fg-2);
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ip-btn-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 6px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
 }

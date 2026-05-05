@@ -6,7 +6,7 @@ import { fetchAlarms, updateIncident } from '../services/api.js';
 // Status order pentru "advance" — fiecare avansează la următorul
 const STATUS_ORDER = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
-export function IncidentCard({ incident, onReassign, onUpdate }) {
+export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onClick }) {
   const [alarmCount, setAlarmCount] = useState(null);
   const severity = normalizeSeverity(incident.severity);
   
@@ -40,7 +40,7 @@ export function IncidentCard({ incident, onReassign, onUpdate }) {
   };
   
   return (
-    <div className={`incident-card sev-${severity}`}>
+    <div className={`incident-card sev-${severity} ${isSelected ? 'selected' : ''}`} onClick={onClick}>
       <div className="ic-stripe" />
       
       <div className="ic-main">
