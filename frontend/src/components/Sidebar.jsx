@@ -67,6 +67,7 @@ export function Sidebar({ counts, currentPage, onNav }) {
   const operationsItems = [
     { id: 'dash', label: 'Dashboard', icon: icons.dashboard },
     { id: 'inc', label: 'Incidents', icon: icons.incidents, count: counts.open, alarm: counts.crit > 0 },
+    { id: 'prob', label: 'Problems', icon: icons.incidents },
     { id: 'srv', label: 'Servers', icon: icons.servers, count: counts.servers },
     { id: 'alm', label: 'Alarms', icon: icons.alarms, count: counts.alarms },
   ];

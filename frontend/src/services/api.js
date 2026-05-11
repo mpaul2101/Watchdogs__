@@ -89,3 +89,16 @@ export function fetchTeams() {
 export function updateIncident(incidentId, updates) {
   return apiPatch(`/api/incidents/${incidentId}`, updates);
 }
+
+// Problems
+export function fetchProblems() {
+  return apiGet('/api/problems');
+}
+
+export function fetchProblem(problemId) {
+  return apiGet(`/api/problems/${problemId}`);
+}
+
+export function fetchProblemTimeline(problemId) {
+  return apiGet(`/api/problems/${problemId}/timeline`);
+}
