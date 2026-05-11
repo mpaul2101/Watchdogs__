@@ -114,6 +114,11 @@ export function updateIncident(incidentId, updates) {
   return apiPatch(`/api/incidents/${incidentId}`, updates);
 }
 
+// Bridge call
+export function startBridgeCall(incidentId) {
+  return apiPost(`/api/incidents/${incidentId}/bridge`);
+}
+
 // =======================================================
 // NOTIFICATIONS
 // =======================================================
