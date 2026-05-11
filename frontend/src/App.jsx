@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar.jsx';
 import { Heatmap } from './components/Heatmap.jsx';
 import { IncidentsList } from './components/IncidentsList.jsx';
 import { AlarmRail } from './components/AlarmRail.jsx';
+import { NotificationsList } from './components/NotificationsList.jsx';
 import { IncidentPanel } from './components/IncidentPanel.jsx';
 import { TeamsPage } from './components/TeamsPage.jsx';
 import { useApiData } from './hooks/useApiData.js';
@@ -68,24 +69,13 @@ export function App() {
   const globalState = counts.crit > 0 ? 'err' : counts.open > 3 ? 'warn' : 'ok';
   
   const handleNav = (newPage) => {
-    if (newPage === 'alm') {
-      setShowAlarms((prev) => !prev);
-      if (selectedIncident) setSelectedIncident(null);
-      if (page !== 'dash') {
-        if (window.location.pathname !== '/') {
-          window.history.pushState({}, '', '/');
-        }
-        setPage('dash');
-      }
-    } else {
-      setShowAlarms(false);
-      if (selectedIncident) setSelectedIncident(null);
-      const path = PAGE_TO_PATH[newPage] || '/';
-      if (window.location.pathname !== path) {
-        window.history.pushState({}, '', path);
-      }
-      setPage(newPage);
+    setShowAlarms(false);
+    if (selectedIncident) setSelectedIncident(null);
+    const path = PAGE_TO_PATH[newPage] || '/';
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
     }
+    setPage(newPage);
   };
 
   const handleIncidentSelect = (incident) => {
@@ -106,6 +96,7 @@ export function App() {
         globalState={globalState}
         openCount={counts.open}
         critCount={counts.crit}
+        onNav={handleNav}
       />
       <div className="body">
         <Sidebar
@@ -143,7 +134,16 @@ export function App() {
           </main>
         )}
 
-        {page !== 'dash' && page !== 'team' && (
+        {page === 'alm' && (
+          <main className="main full">
+            <div className="alarms-page-grid">
+              <AlarmRail />
+              <NotificationsList />
+            </div>
+          </main>
+        )}
+
+        {page !== 'dash' && page !== 'team' && page !== 'alm' && (
           <main className="main full">
             <div style={{ padding: '24px' }}>
               <h2 style={{ fontSize: '14px', marginBottom: '8px' }}>

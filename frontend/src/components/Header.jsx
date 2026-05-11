@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useApiData } from '../hooks/useApiData.js';
+import { fetchNotificationLog } from '../services/api.js';
 
 // Sub-componentă: iconul de ochi pentru logo
 function WatchEye() {
@@ -25,9 +27,20 @@ function useClock() {
   return now;
 }
 
-export function Header({ globalState, openCount, critCount }) {
+export function Header({ globalState, openCount, critCount, onNav }) {
   const now = useClock();
   const { users, currentUser, loading, setCurrentUserId } = useAuth();
+  
+  // Fetch notification log pentru badge (last 24h)
+  const { data: logsData } = useApiData(
+    () => fetchNotificationLog({ limit: 100 }), 
+    { refreshMs: 30000 }
+  );
+  const logs = logsData || [];
+
+  // Calculați câte notificări au fost trimise în ultimele 24h
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentCount = logs.filter(l => new Date(l.sent_at) > yesterday).length;
   
   // Formatare ora "HH:MM:SS UTC"
   const pad = (n) => String(n).padStart(2, '0');
@@ -64,6 +77,14 @@ export function Header({ globalState, openCount, critCount }) {
         <span className="label">{statusLabel}</span>
         <span className="mono" style={{ color: 'var(--fg-3)' }}>·</span>
         <span className="mono">{critCount} crit · {openCount} open</span>
+        {recentCount > 0 && (
+          <button 
+            className="header-badge notify-badge" 
+            onClick={() => onNav && onNav('alm')}
+          >
+            {recentCount} new
+          </button>
+        )}
       </div>
       
       {/* Meta info dreapta */}

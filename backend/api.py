@@ -10,7 +10,7 @@ from threshold_engine import ROUTING
 
 app = FastAPI(title="Watchdogs API")
 
-# Lăsăm colegul de la Frontend să ne acceseze datele
+# Frontend sa acceseze datele
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
