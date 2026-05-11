@@ -28,9 +28,15 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
   const role = currentUser?.role;
   const isCeo = role === 'CEO';
   const isEngineer = role === 'Engineer';
-  const canReassign = !isCeo && !isEngineer;
+  const isIncidentManager = role === 'Incident Manager';
+  const canReassign = isIncidentManager;
   
-  const filteredIncidents = incidents?.filter(inc => {
+  const baseIncidents = incidents || [];
+  const triageIncidents = isIncidentManager
+    ? baseIncidents.filter((inc) => inc.triage_status === 'Unassigned')
+    : baseIncidents;
+
+  const filteredIncidents = triageIncidents.filter(inc => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -38,7 +44,7 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
       String(inc.id).includes(q) ||
       inc.server_id?.toLowerCase().includes(q)
     );
-  }) || [];
+  });
   
   if (!currentUser && !authLoading) {
     return (
@@ -75,16 +81,18 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
     );
   }
   
-  const allCount = incidents?.length || 0;
-  const criticalCount = incidents?.filter(i => i.severity === 'CRITIC').length || 0;
-  const highCount = incidents?.filter(i => i.severity === 'HIGH').length || 0;
-  const openCount = incidents?.filter(i => i.status === 'OPEN').length || 0;
+  const allCount = triageIncidents.length;
+  const criticalCount = triageIncidents.filter(i => i.severity === 'CRITIC').length || 0;
+  const highCount = triageIncidents.filter(i => i.severity === 'HIGH').length || 0;
+  const openCount = triageIncidents.filter(i => i.status === 'OPEN').length || 0;
   
   return (
     <>
       <div className="panel incidents">
         <div className="panel-header">
-          <span className="ph-title">Active Incidents · {allCount}</span>
+          <span className="ph-title">
+            {isIncidentManager ? 'IM Triage Queue' : 'Active Incidents'} · {allCount}
+          </span>
           <span className="ph-meta">
             <span style={{ color: 'var(--sev-critical)' }}>● {criticalCount} critical</span>
             <span style={{ color: 'var(--sev-high)' }}>● {highCount} high</span>
@@ -111,15 +119,20 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
             <div className="incidents-list">
               {filteredIncidents.map(incident => {
                 const canAdvance = !isCeo && (!isEngineer || incident.assigned_person === currentUser?.id);
+                const bridgeActive = incident.bridge_status === 'Active';
+                const canReassignIncident =
+                  isIncidentManager &&
+                  incident.triage_status === 'Unassigned' &&
+                  (!incident.bridge_required || bridgeActive);
                 return (
                 <IncidentCard
                   key={incident.id}
                   incident={incident}
                   isSelected={incident.id === selectedIncidentId}
                   onClick={() => onIncidentSelect && onIncidentSelect(incident)}
-                  onReassign={canReassign ? setReassigningIncident : null}
+                  onReassign={canReassignIncident ? setReassigningIncident : null}
                   onUpdate={refresh}
-                  canReassign={canReassign}
+                  canReassign={canReassignIncident}
                   canAdvance={canAdvance}
                 />
                 );

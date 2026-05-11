@@ -1,21 +1,30 @@
 import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils/formatters.js';
 import { normalizeSeverity, SEVERITY_LABELS } from '../utils/severity.js';
-import { fetchAlarms, updateIncident } from '../services/api.js';
+import { fetchAlarms, startBridgeCall, updateIncident } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export function IncidentPanel({ incident, onClose, onUpdate }) {
   const [alarms, setAlarms] = useState([]);
   const [statusUpdating, setStatusUpdating] = useState(null);
+  const [bridgeUpdating, setBridgeUpdating] = useState(false);
   const { currentUser } = useAuth();
   const severity = normalizeSeverity(incident.severity);
 
   const role = currentUser?.role;
   const isCeo = role === 'CEO';
   const isEngineer = role === 'Engineer';
+  const isIncidentManager = role === 'Incident Manager';
   const isReadOnly = isCeo || incident.read_only;
-  const canReassign = !isReadOnly && !isEngineer;
+  const bridgeActive = incident.bridge_status === 'Active';
+  const canReassign =
+    !isReadOnly &&
+    isIncidentManager &&
+    incident.triage_status === 'Unassigned' &&
+    (!incident.bridge_required || bridgeActive);
   const canUpdateStatus = !isReadOnly && (!isEngineer || incident.assigned_person === currentUser?.id);
+  const canStartBridge = isIncidentManager && incident.bridge_required && !bridgeActive;
+  const canViewBridge = bridgeActive && (isIncidentManager || (isEngineer && incident.assigned_person === currentUser?.id));
 
   useEffect(() => {
     fetchAlarms({ incident_id: incident.id })
@@ -36,6 +45,19 @@ export function IncidentPanel({ incident, onClose, onUpdate }) {
       alert(`Failed to update: ${err.message}`);
     } finally {
       setStatusUpdating(null);
+    }
+  };
+
+  const handleStartBridge = async () => {
+    if (!canStartBridge || bridgeUpdating) return;
+    setBridgeUpdating(true);
+    try {
+      const updated = await startBridgeCall(incident.id);
+      if (onUpdate) onUpdate(updated);
+    } catch (err) {
+      alert(`Failed to start bridge: ${err.message}`);
+    } finally {
+      setBridgeUpdating(false);
     }
   };
 
@@ -88,6 +110,40 @@ export function IncidentPanel({ incident, onClose, onUpdate }) {
             </div>
           </div>
         </div>
+
+        {incident.bridge_required && (
+          <div className="ip-section">
+            <div className="ip-sec-title">BRIDGE CALL</div>
+            <div className="bridge-card">
+              <div className="bridge-row">
+                <span className={`bridge-status ${bridgeActive ? 'active' : 'pending'}`}>
+                  {incident.bridge_status || 'Not Started'}
+                </span>
+                <span className="bridge-required">REQUIRED</span>
+              </div>
+              <div className="bridge-note">
+                Bridge call is mandatory for {incident.severity} incidents.
+              </div>
+              {canViewBridge && incident.bridge_url && (
+                <a className="bridge-link" href={incident.bridge_url} target="_blank" rel="noreferrer">
+                  {incident.bridge_url}
+                </a>
+              )}
+              {canStartBridge && (
+                <button
+                  className="btn primary"
+                  onClick={handleStartBridge}
+                  disabled={bridgeUpdating}
+                >
+                  {bridgeUpdating ? 'Starting...' : 'Start Bridge Call'}
+                </button>
+              )}
+              {!canStartBridge && !bridgeActive && (
+                <div className="bridge-hint">Waiting for Incident Manager to start the bridge.</div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* SEVERITY HISTORY (Mock) */}
         <div className="ip-section">

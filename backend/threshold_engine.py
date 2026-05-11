@@ -150,14 +150,23 @@ def _find_open_incident(cursor, server_id: str, metric_type: str) -> Optional[tu
 
 def _create_incident(cursor, server_id: str, metric_type: str, severity: str) -> int:
     title = f"[{severity}] {metric_type} pe {server_id}"
-    team = ROUTING.get(metric_type, DEFAULT_TEAM)
+    bridge_required = severity in {"CRITIC", "HIGH"}
     cursor.execute(
         """
-        INSERT INTO incidents (server_id, metric_type, title, severity, status, assigned_team)
-        VALUES (%s, %s, %s, %s, 'OPEN', %s)
+        INSERT INTO incidents (
+            server_id,
+            metric_type,
+            title,
+            severity,
+            status,
+            triage_status,
+            assigned_team,
+            bridge_required
+        )
+        VALUES (%s, %s, %s, %s, 'OPEN', 'Unassigned', NULL, %s)
         RETURNING id
         """,
-        (server_id, metric_type, title, severity, team),
+        (server_id, metric_type, title, severity, bridge_required),
     )
     return cursor.fetchone()[0]
 
