@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar.jsx';
 import { Heatmap } from './components/Heatmap.jsx';
 import { IncidentsList } from './components/IncidentsList.jsx';
 import { AlarmRail } from './components/AlarmRail.jsx';
+import { NotificationsList } from './components/NotificationsList.jsx';
 import { IncidentPanel } from './components/IncidentPanel.jsx';
 import { TeamsPage } from './components/TeamsPage.jsx';
 import { ProblemsPage } from './components/ProblemsPage.jsx';
@@ -77,24 +78,6 @@ export function App() {
   const globalState = counts.crit > 0 ? 'err' : counts.open > 3 ? 'warn' : 'ok';
 
   const handleNav = (newPage) => {
-    if (newPage === 'alm') {
-      setShowAlarms((prev) => !prev);
-
-      if (selectedIncident) {
-        setSelectedIncident(null);
-      }
-
-      if (page !== 'dash') {
-        if (window.location.pathname !== '/') {
-          window.history.pushState({}, '', '/');
-        }
-
-        setPage('dash');
-      }
-
-      return;
-    }
-
     setShowAlarms(false);
 
     if (selectedIncident) {
@@ -131,6 +114,7 @@ export function App() {
         globalState={globalState}
         openCount={counts.open}
         critCount={counts.crit}
+        onNav={handleNav}
       />
 
       <div className="body">
@@ -179,14 +163,23 @@ export function App() {
           </main>
         )}
 
-        {page !== 'dash' && page !== 'team' && page !== 'prob' && (
+        {page === 'alm' && (
+          <main className="main full">
+            <div className="alarms-page-grid">
+              <AlarmRail />
+              <NotificationsList />
+            </div>
+          </main>
+        )}
+
+        {page !== 'dash' && page !== 'team' && page !== 'prob' && page !== 'alm' && (
           <main className="main full">
             <div style={{ padding: '24px' }}>
               <h2 style={{ fontSize: '14px', marginBottom: '8px' }}>
                 Page: {page}
               </h2>
               <p style={{ color: 'var(--fg-3)', fontSize: '11px' }}>
-                În construcție. Pentru moment, dashboard-ul, Teams și Problems afișează date.
+                În construcție. Pentru moment, dashboard-ul, Teams, Alarms și Problems afișează date.
               </p>
             </div>
           </main>

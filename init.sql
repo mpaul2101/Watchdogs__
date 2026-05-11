@@ -52,7 +52,8 @@ INSERT INTO users (name, email, team_name, role, on_call_status)
 VALUES
     ('Elena', 'elena@watchdogs.local', 'Executive', 'CEO', FALSE),
     ('Maria', 'maria@watchdogs.local', 'Infrastructure', 'System Manager', TRUE),
-    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE)
+    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE),
+    ('Alex',  'alex@watchdogs.local', 'NOC', 'Incident Manager', FALSE)
 ON CONFLICT (email) DO UPDATE SET
     name = EXCLUDED.name,
     team_name = EXCLUDED.team_name,
@@ -375,18 +376,26 @@ CREATE TABLE IF NOT EXISTS incidents (
     title VARCHAR(200),
     severity VARCHAR(20),        -- 'CRITIC', 'HIGH', 'MEDIUM', 'LOW'
     status VARCHAR(20) DEFAULT 'OPEN',
+    triage_status VARCHAR(20) DEFAULT 'Unassigned',
     assigned_team VARCHAR(50),   -- echipa responsabila (ex: 'Infrastructure')
     assigned_person INT,         -- FK catre users.id
     assigned_to VARCHAR(50),     -- inginer specific in cadrul echipei (optional)
+    bridge_required BOOLEAN DEFAULT FALSE,
+    bridge_status VARCHAR(20) DEFAULT 'Not Started',
+    bridge_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS server_id VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS metric_type VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS triage_status VARCHAR(20) DEFAULT 'Unassigned';
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_team VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_person INT;
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_required BOOLEAN DEFAULT FALSE;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_status VARCHAR(20) DEFAULT 'Not Started';
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_url TEXT;
 
 -- Cautare rapida pentru deduplicare: "exista deja un OPEN pentru asta?"
 CREATE INDEX IF NOT EXISTS idx_incidents_open_lookup
@@ -455,5 +464,266 @@ BEGIN
             ELSE 3
         END,
         m.server_id;
+END;
+$$;
+
+-- =====================================================================
+-- NOTIFICATION SYSTEM
+-- =====================================================================
+-- 
+-- 3 tabele care lucrează împreună:
+--   1. notification_lists       — liste de distribuție (red/yellow/green)
+--   2. notification_list_members — cine e în care listă (many-to-many)
+--   3. notification_templates    — template-uri de mesaje pentru fiecare severitate
+--   4. notification_log          — istoric: ce s-a trimis, cui, când
+-- =====================================================================
+
+-- 1. Liste de distribuție
+CREATE TABLE IF NOT EXISTS notification_lists (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,      -- 'red', 'yellow', 'green'
+    color VARCHAR(20) NOT NULL,            -- pentru UI display
+    description TEXT,
+    severity_trigger VARCHAR(20),          -- ce severity activează această listă
+    auto_call BOOLEAN DEFAULT FALSE        -- dacă trebuie să se "creeze call" automat
+);
+
+-- 2. Membri în liste (many-to-many: un user poate fi în mai multe liste)
+CREATE TABLE IF NOT EXISTS notification_list_members (
+    list_id INT REFERENCES notification_lists(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (list_id, user_id)
+);
+
+-- 3. Template-uri de mesaje
+CREATE TABLE IF NOT EXISTS notification_templates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20),
+    subject_template TEXT NOT NULL,
+    body_template TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Log de notificări (ce s-a trimis efectiv)
+CREATE TABLE IF NOT EXISTS notification_log (
+    id SERIAL PRIMARY KEY,
+    incident_id INT REFERENCES incidents(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    list_name VARCHAR(50),                 -- 'red', 'yellow', sau 'on_call_team'
+    delivery_method VARCHAR(20),           -- 'email_simulated', 'call_simulated'
+    rendered_subject TEXT,
+    rendered_body TEXT,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    delivery_status VARCHAR(20) DEFAULT 'simulated',
+    triggered_by INT REFERENCES users(id) ON DELETE SET NULL  -- cine a apăsat send
+);
+
+-- Indexuri pentru lookup rapid
+CREATE INDEX IF NOT EXISTS idx_notif_log_incident ON notification_log(incident_id);
+CREATE INDEX IF NOT EXISTS idx_notif_log_user ON notification_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_notif_log_sent ON notification_log(sent_at DESC);
+
+-- =====================================================================
+-- SEED DATA — listele de distribuție
+-- =====================================================================
+
+INSERT INTO notification_lists (name, color, description, severity_trigger, auto_call) VALUES
+    ('red',    '#ef4444', 'Executive list — CEO, CTO, CMO. Triggered for CRITIC incidents.', 'CRITIC', TRUE),
+    ('yellow', '#eab308', 'Senior managers — System Managers. Triggered for HIGH.',         'HIGH',   FALSE),
+    ('green',  '#22c55e', 'Team leads — informational only. Triggered for MEDIUM.',         'MEDIUM', FALSE)
+ON CONFLICT (name) DO NOTHING;
+
+-- Useri suplimentari pentru demo (presupunem că Persoana 1 a adăugat doar 3)
+INSERT INTO users (name, email, team_name, role, on_call_status) VALUES
+    ('Andrei',  'andrei@watchdogs.local',  'Executive',      'CTO',            FALSE),
+    ('Cristian','cristi@watchdogs.local',  'Backend',        'System Manager', TRUE),
+    ('Diana',   'diana@watchdogs.local',   'Database',       'System Manager', FALSE),
+    ('Sorin',   'sorin@watchdogs.local',   'Backend',        'Engineer',       FALSE),
+    ('Ana',     'ana@watchdogs.local',     'Infrastructure', 'Engineer',       FALSE)
+ON CONFLICT (email) DO NOTHING;
+
+-- Asignare automată: toți executivii → lista roșie
+INSERT INTO notification_list_members (list_id, user_id)
+SELECT 
+    (SELECT id FROM notification_lists WHERE name = 'red'),
+    u.id
+FROM users u 
+WHERE u.team_name = 'Executive'
+ON CONFLICT DO NOTHING;
+
+-- System managers → lista galbenă
+INSERT INTO notification_list_members (list_id, user_id)
+SELECT 
+    (SELECT id FROM notification_lists WHERE name = 'yellow'),
+    u.id
+FROM users u 
+WHERE u.role = 'System Manager'
+ON CONFLICT DO NOTHING;
+
+-- Template-uri default
+INSERT INTO notification_templates (name, severity, subject_template, body_template) VALUES
+    (
+        'critical_alert',
+        'CRITIC',
+        'CRITICAL: {{metric_type}} on {{server_id}}',
+        E'Server: {{server_id}}\nMetric: {{metric_type}}\nSeverity: CRITICAL\nIncident ID: #{{incident_id}}\n\nImmediate action required. War room scheduled.\n\nAssigned team: {{assigned_team}}'
+    ),
+    (
+        'high_alert',
+        'HIGH',
+        'HIGH: {{metric_type}} on {{server_id}}',
+        E'Server: {{server_id}}\nMetric: {{metric_type}}\nIncident ID: #{{incident_id}}\n\nPlease investigate within 30 minutes.\nAssigned team: {{assigned_team}}'
+    ),
+    (
+        'medium_alert',
+        'MEDIUM',
+        'ℹMEDIUM: {{metric_type}} on {{server_id}}',
+        E'Server: {{server_id}}\nMetric: {{metric_type}}\nIncident ID: #{{incident_id}}\n\nFor your awareness. Monitor situation.'
+    )
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION get_notification_targets(p_incident_id INT)
+RETURNS TABLE (
+    user_id INT,
+    user_name VARCHAR,
+    user_email VARCHAR,
+    user_role VARCHAR,
+    list_name VARCHAR,
+    notification_reason VARCHAR,
+    priority INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    inc_severity VARCHAR;
+    inc_team VARCHAR;
+BEGIN
+    -- Aflăm severity și echipa asignată
+    SELECT severity, assigned_team 
+    INTO inc_severity, inc_team
+    FROM incidents 
+    WHERE id = p_incident_id;
+    
+    -- Dacă incidentul nu există, returnăm tabel gol
+    IF inc_severity IS NULL THEN
+        RETURN;
+    END IF;
+    
+    RETURN QUERY
+    SELECT * FROM (
+        -- 1. Membri din lista de distribuție pentru severitatea respectivă
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            nl.name::VARCHAR AS list_name,
+            ('Member of ' || nl.name || ' distribution list')::VARCHAR AS notification_reason,
+            1 AS priority
+        FROM notification_lists nl
+        JOIN notification_list_members nlm ON nl.id = nlm.list_id
+        JOIN users u ON nlm.user_id = u.id
+        WHERE nl.severity_trigger = inc_severity
+        
+        UNION
+        
+        -- 2. Engineer-ul on-call din echipa asignată
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            'on_call_team'::VARCHAR AS list_name,
+            ('On-call engineer for ' || inc_team || ' team')::VARCHAR AS notification_reason,
+            2 AS priority
+        FROM users u
+        WHERE u.team_name = inc_team 
+          AND u.on_call_status = TRUE
+          AND u.role = 'Engineer'
+        
+        UNION
+        
+        -- 3. System Manager al echipei asignate
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            'team_manager'::VARCHAR AS list_name,
+            ('System Manager of ' || inc_team || ' team')::VARCHAR AS notification_reason,
+            3 AS priority
+        FROM users u
+        WHERE u.team_name = inc_team 
+          AND u.role = 'System Manager'
+    ) AS combined
+    ORDER BY combined.priority, combined.user_name;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION dispatch_notifications(
+    p_incident_id INT,
+    p_triggered_by INT DEFAULT NULL
+)
+RETURNS INT  -- câte notificări s-au trimis
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    target RECORD;
+    template_record RECORD;
+    inc_record RECORD;
+    sent_count INT := 0;
+    rendered_subject TEXT;
+    rendered_body TEXT;
+BEGIN
+    -- Ia detaliile incidentului
+    SELECT * INTO inc_record FROM incidents WHERE id = p_incident_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Incident % does not exist', p_incident_id;
+    END IF;
+    
+    -- Ia template-ul potrivit pentru severitate
+    SELECT * INTO template_record 
+    FROM notification_templates 
+    WHERE severity = inc_record.severity
+    LIMIT 1;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No template for severity %', inc_record.severity;
+    END IF;
+    
+    -- Pentru fiecare target, generează și loghează notificarea
+    FOR target IN 
+        SELECT * FROM get_notification_targets(p_incident_id)
+    LOOP
+        -- Render template cu valorile din incident
+        rendered_subject := template_record.subject_template;
+        rendered_subject := REPLACE(rendered_subject, '{{server_id}}', COALESCE(inc_record.server_id, 'unknown'));
+        rendered_subject := REPLACE(rendered_subject, '{{metric_type}}', COALESCE(inc_record.metric_type, 'unknown'));
+        rendered_subject := REPLACE(rendered_subject, '{{incident_id}}', inc_record.id::TEXT);
+        
+        rendered_body := template_record.body_template;
+        rendered_body := REPLACE(rendered_body, '{{server_id}}', COALESCE(inc_record.server_id, 'unknown'));
+        rendered_body := REPLACE(rendered_body, '{{metric_type}}', COALESCE(inc_record.metric_type, 'unknown'));
+        rendered_body := REPLACE(rendered_body, '{{incident_id}}', inc_record.id::TEXT);
+        rendered_body := REPLACE(rendered_body, '{{assigned_team}}', COALESCE(inc_record.assigned_team, 'unassigned'));
+        
+        -- Insert în log
+        INSERT INTO notification_log (
+            incident_id, user_id, list_name,
+            delivery_method, rendered_subject, rendered_body,
+            triggered_by
+        ) VALUES (
+            p_incident_id, target.user_id, target.list_name,
+            'email_simulated', rendered_subject, rendered_body,
+            p_triggered_by
+        );
+        
+        sent_count := sent_count + 1;
+    END LOOP;
+    
+    RETURN sent_count;
 END;
 $$;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { timeAgo } from '../utils/formatters.js';
 import { normalizeSeverity, SEVERITY_LABELS } from '../utils/severity.js';
 import { fetchAlarms, updateIncident } from '../services/api.js';
+import { NotifyModal } from './NotifyModal.jsx';
 
 // Status order pentru "advance" — fiecare avansează la următorul
 const STATUS_ORDER = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
@@ -16,6 +17,7 @@ export function IncidentCard({
   canAdvance = true,
 }) {
   const [alarmCount, setAlarmCount] = useState(null);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
   const severity = normalizeSeverity(incident.severity);
   
   // Fetch numărul de alarme la prima randare
@@ -47,6 +49,11 @@ export function IncidentCard({
     e.stopPropagation();
     if (!canReassign) return;
     if (onReassign) onReassign(incident);
+  };
+  
+  const handleNotifyClick = (e) => {
+    e.stopPropagation();
+    setShowNotifyModal(true);
   };
   
   return (
@@ -98,8 +105,24 @@ export function IncidentCard({
           >
             ADVANCE <span className="arrow">»</span>
           </button>
+          <button 
+            className="ic-action-btn notify-btn" 
+            onClick={handleNotifyClick}
+          >
+            NOTIFY
+          </button>
         </div>
       </div>
+      
+      {showNotifyModal && (
+        <NotifyModal 
+          incident={incident} 
+          onClose={() => setShowNotifyModal(false)}
+          onSuccess={(count) => {
+            alert(`Notifications sent to ${count} people`);
+          }}
+        />
+      )}
     </div>
   );
 }

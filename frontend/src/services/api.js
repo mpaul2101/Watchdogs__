@@ -51,6 +51,30 @@ async function apiPatch(endpoint, body) {
   return response.json();
 }
 
+// Helper pentru POST requests
+async function apiPost(endpoint, body = null, params = {}) {
+  const queryString = Object.entries(params)
+    .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+    
+  const url = queryString 
+    ? `${API_BASE_URL}${endpoint}?${queryString}`
+    : `${API_BASE_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: buildHeaders(body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : null,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 // =======================================================
 // ENDPOINTS — câte o funcție per endpoint
 // =======================================================
@@ -90,6 +114,7 @@ export function updateIncident(incidentId, updates) {
   return apiPatch(`/api/incidents/${incidentId}`, updates);
 }
 
+
 // Problems
 export function fetchProblems() {
   return apiGet('/api/problems');
@@ -101,4 +126,29 @@ export function fetchProblem(problemId) {
 
 export function fetchProblemTimeline(problemId) {
   return apiGet(`/api/problems/${problemId}/timeline`);
+}
+
+// Bridge call
+export function startBridgeCall(incidentId) {
+  return apiPost(`/api/incidents/${incidentId}/bridge`);
+}
+
+// =======================================================
+// NOTIFICATIONS
+// =======================================================
+
+export function fetchNotificationLists() {
+  return apiGet('/api/notifications/lists');
+}
+
+export function fetchNotificationTargets(incidentId) {
+  return apiGet(`/api/notifications/targets/${incidentId}`);
+}
+
+export function fetchNotificationLog({ incident_id, user_id, limit = 50 } = {}) {
+  return apiGet('/api/notifications/log', { incident_id, user_id, limit });
+}
+
+export function sendNotifications(incidentId, triggered_by) {
+  return apiPost(`/api/notifications/send/${incidentId}`, null, { triggered_by });
 }
