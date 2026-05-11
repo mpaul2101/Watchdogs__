@@ -645,6 +645,26 @@
   margin-bottom: 8px;
 }
 
+.modal-select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  color: var(--fg-1);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  margin-bottom: 6px;
+}
+
+.modal-select:focus {
+  border-color: var(--accent);
+}
+
+.modal-hint {
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
 .team-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1322,4 +1342,123 @@
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.ip-btn-status:disabled,
+.ip-btn-action:disabled,
+.ip-btn-primary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ===========================================
+   TEAMS PAGE
+   =========================================== */
+
+.teams {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.teams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.team-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-1);
+  background: var(--bg-2);
+}
+
+.team-title {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-2);
+}
+
+.team-count {
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+
+.team-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-1);
+  background: var(--bg-3);
+}
+
+.team-user.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.tu-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-4);
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+
+.tu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tu-name {
+  font-size: 11px;
+  color: var(--fg-1);
+}
+
+.tu-role {
+  font-size: 9.5px;
+  color: var(--fg-3);
+}
+
+.badge {
+  margin-left: auto;
+  font-size: 9px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-2);
+}
+
+.badge.oncall {
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
 }

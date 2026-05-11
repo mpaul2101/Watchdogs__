@@ -6,7 +6,15 @@ import { fetchAlarms, updateIncident } from '../services/api.js';
 // Status order pentru "advance" — fiecare avansează la următorul
 const STATUS_ORDER = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
-export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onClick }) {
+export function IncidentCard({
+  incident,
+  onReassign,
+  onUpdate,
+  isSelected,
+  onClick,
+  canReassign = true,
+  canAdvance = true,
+}) {
   const [alarmCount, setAlarmCount] = useState(null);
   const severity = normalizeSeverity(incident.severity);
   
@@ -20,6 +28,7 @@ export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onCli
   // Handler pentru "Advance status" — trece la următorul status
   const handleAdvance = async (e) => {
     e.stopPropagation();
+    if (!canAdvance) return;
     const currentIdx = STATUS_ORDER.indexOf(incident.status);
     if (currentIdx >= STATUS_ORDER.length - 1) return; // deja CLOSED
     
@@ -36,6 +45,7 @@ export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onCli
   
   const handleReassign = (e) => {
     e.stopPropagation();
+    if (!canReassign) return;
     if (onReassign) onReassign(incident);
   };
   
@@ -60,8 +70,8 @@ export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onCli
           <span className="ic-team">
             {incident.assigned_team || 'unassigned'}
           </span>
-          {incident.assigned_to && (
-            <span>· {incident.assigned_to}</span>
+          {(incident.assigned_person_name || incident.assigned_to) && (
+            <span>· {incident.assigned_person_name || incident.assigned_to}</span>
           )}
           <span className="ic-meta-sep">·</span>
           <span>opened {timeAgo(incident.created_at)}</span>
@@ -77,13 +87,14 @@ export function IncidentCard({ incident, onReassign, onUpdate, isSelected, onCli
           <button 
             className="ic-action-btn" 
             onClick={handleReassign}
+            disabled={!canReassign}
           >
             REASSIGN <span className="arrow">→</span>
           </button>
           <button 
             className="ic-action-btn" 
             onClick={handleAdvance}
-            disabled={incident.status === 'CLOSED'}
+            disabled={!canAdvance || incident.status === 'CLOSED'}
           >
             ADVANCE <span className="arrow">»</span>
           </button>

@@ -4,8 +4,10 @@ import { fetchIncidents } from '../services/api.js';
 import { IncidentCard } from './IncidentCard.jsx';
 import { IncidentsFilters } from './IncidentsFilters.jsx';
 import { ReassignModal } from './ReassignModal.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
+  const { currentUser, loading: authLoading } = useAuth();
   const [filters, setFilters] = useState({
     severity: null,
     status: null,
@@ -18,9 +20,15 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
     () => fetchIncidents(filters),
     { 
       refreshMs: 5000,
-      deps: [filters.severity, filters.status, filters.team]
+      enabled: !!currentUser,
+      deps: [filters.severity, filters.status, filters.team, currentUser?.id]
     }
   );
+
+  const role = currentUser?.role;
+  const isCeo = role === 'CEO';
+  const isEngineer = role === 'Engineer';
+  const canReassign = !isCeo && !isEngineer;
   
   const filteredIncidents = incidents?.filter(inc => {
     if (!searchQuery) return true;
@@ -32,6 +40,17 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
     );
   }) || [];
   
+  if (!currentUser && !authLoading) {
+    return (
+      <div className="panel incidents">
+        <div className="panel-header">
+          <span className="ph-title">Active Incidents</span>
+        </div>
+        <div className="empty">select a user to load incidents</div>
+      </div>
+    );
+  }
+
   if (loading && !incidents) {
     return (
       <div className="panel incidents">
@@ -90,22 +109,27 @@ export function IncidentsList({ onIncidentSelect, selectedIncidentId }) {
             </div>
           ) : (
             <div className="incidents-list">
-              {filteredIncidents.map(incident => (
+              {filteredIncidents.map(incident => {
+                const canAdvance = !isCeo && (!isEngineer || incident.assigned_person === currentUser?.id);
+                return (
                 <IncidentCard
                   key={incident.id}
                   incident={incident}
                   isSelected={incident.id === selectedIncidentId}
                   onClick={() => onIncidentSelect && onIncidentSelect(incident)}
-                  onReassign={setReassigningIncident}
+                  onReassign={canReassign ? setReassigningIncident : null}
                   onUpdate={refresh}
+                  canReassign={canReassign}
+                  canAdvance={canAdvance}
                 />
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
       
-      {reassigningIncident && (
+      {reassigningIncident && canReassign && (
         <ReassignModal
           incident={reassigningIncident}
           onClose={() => setReassigningIncident(null)}

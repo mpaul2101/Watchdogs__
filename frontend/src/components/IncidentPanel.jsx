@@ -1,17 +1,43 @@
 import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils/formatters.js';
 import { normalizeSeverity, SEVERITY_LABELS } from '../utils/severity.js';
-import { fetchAlarms } from '../services/api.js';
+import { fetchAlarms, updateIncident } from '../services/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
-export function IncidentPanel({ incident, onClose }) {
+export function IncidentPanel({ incident, onClose, onUpdate }) {
   const [alarms, setAlarms] = useState([]);
+  const [statusUpdating, setStatusUpdating] = useState(null);
+  const { currentUser } = useAuth();
   const severity = normalizeSeverity(incident.severity);
+
+  const role = currentUser?.role;
+  const isCeo = role === 'CEO';
+  const isEngineer = role === 'Engineer';
+  const isReadOnly = isCeo || incident.read_only;
+  const canReassign = !isReadOnly && !isEngineer;
+  const canUpdateStatus = !isReadOnly && (!isEngineer || incident.assigned_person === currentUser?.id);
 
   useEffect(() => {
     fetchAlarms({ incident_id: incident.id })
       .then(data => setAlarms(data))
       .catch(() => setAlarms([]));
   }, [incident.id]);
+
+  const handleStatusChange = async (nextStatus) => {
+    if (!canUpdateStatus) return;
+    if (incident.status === nextStatus) return;
+    if (statusUpdating) return;
+
+    setStatusUpdating(nextStatus);
+    try {
+      const updated = await updateIncident(incident.id, { status: nextStatus });
+      if (onUpdate) onUpdate(updated);
+    } catch (err) {
+      alert(`Failed to update: ${err.message}`);
+    } finally {
+      setStatusUpdating(null);
+    }
+  };
 
   if (!incident) return null;
 
@@ -32,6 +58,9 @@ export function IncidentPanel({ incident, onClose }) {
           <span className={`ip-sev-text sev-${severity}`}>{SEVERITY_LABELS[severity]}</span>
           <span>{incident.status}</span>
           <span>{incident.assigned_team || 'unassigned'}</span>
+          {(incident.assigned_person_name || incident.assigned_to) && (
+            <span>{incident.assigned_person_name || incident.assigned_to}</span>
+          )}
           <span>opened {timeAgo(incident.created_at)}</span>
         </div>
       </div>
@@ -138,14 +167,44 @@ export function IncidentPanel({ incident, onClose }) {
 
       <div className="ip-footer">
         <div className="ip-status-group">
-          <button className={`ip-btn-status ${incident.status === 'OPEN' ? 'active' : ''}`}>OPEN</button>
-          <button className={`ip-btn-status ${incident.status === 'IN_PROGRESS' ? 'active' : ''}`}>IN PROGRESS</button>
-          <button className={`ip-btn-status ${incident.status === 'RESOLVED' ? 'active' : ''}`}>RESOLVED</button>
-          <button className={`ip-btn-status ${incident.status === 'CLOSED' ? 'active' : ''}`}>CLOSED</button>
+          <button
+            className={`ip-btn-status ${incident.status === 'OPEN' ? 'active' : ''}`}
+            onClick={() => handleStatusChange('OPEN')}
+            disabled={!canUpdateStatus || statusUpdating}
+          >
+            OPEN
+          </button>
+          <button
+            className={`ip-btn-status ${incident.status === 'IN_PROGRESS' ? 'active' : ''}`}
+            onClick={() => handleStatusChange('IN_PROGRESS')}
+            disabled={!canUpdateStatus || statusUpdating}
+          >
+            IN PROGRESS
+          </button>
+          <button
+            className={`ip-btn-status ${incident.status === 'RESOLVED' ? 'active' : ''}`}
+            onClick={() => handleStatusChange('RESOLVED')}
+            disabled={!canUpdateStatus || statusUpdating}
+          >
+            RESOLVED
+          </button>
+          <button
+            className={`ip-btn-status ${incident.status === 'CLOSED' ? 'active' : ''}`}
+            onClick={() => handleStatusChange('CLOSED')}
+            disabled={!canUpdateStatus || statusUpdating}
+          >
+            CLOSED
+          </button>
         </div>
         <div className="ip-actions-group">
-          <button className="ip-btn-action">Reassign team</button>
-          <button className="ip-btn-primary" onClick={onClose}>Close</button>
+          <button className="ip-btn-action" disabled={!canReassign}>Reassign team</button>
+          <button
+            className="ip-btn-primary"
+            onClick={() => handleStatusChange('CLOSED')}
+            disabled={!canUpdateStatus || statusUpdating}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
