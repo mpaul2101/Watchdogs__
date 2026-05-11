@@ -134,9 +134,13 @@ def get_incidents(
         END,
         created_at DESC
 """
+    print (query)
+    print("parametrii: ", params)
     conn = get_db_connection()
     db_cursor = conn.cursor(cursor_factory =RealDictCursor)   
     try:
+        query_final = db_cursor.mogrify(query, params).decode('utf-8')
+        print(query_final)
         db_cursor.execute(query , params)
         return db_cursor.fetchall()
     finally:
