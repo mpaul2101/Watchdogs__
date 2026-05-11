@@ -79,11 +79,8 @@ def get_metrics(
         conditions.append(" server_id = %s ")
         params.append(server_id)
        
-  
-   
     where_clause = "WHERE " + " AND ".join(conditions)
     
-
     query = f"SELECT * FROM metrics {where_clause} ORDER BY timestamp DESC LIMIT %s"
     params.append(limit)
     
@@ -101,7 +98,6 @@ def get_alarms(
     severity: Optional[str] =  Query(None),
     server_id: Optional[str] = Query(None),
     incident_id: Optional[int] = Query(None),
-
 ):
     conditions = []
     params = []
@@ -299,6 +295,134 @@ def get_infrastructure_health():
     db_cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
         db_cursor.execute("SELECT * FROM get_infrastructure_health();")
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+# =====================================================================
+# NOTIFICATIONS — Persoana 3 (Paul)
+# =====================================================================
+
+@app.get("/api/notifications/lists")
+def get_notification_lists():
+    """Liste de distribuție cu numărul de membri."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("""
+            SELECT 
+                nl.id, nl.name, nl.color, nl.description, nl.severity_trigger,
+                COUNT(nlm.user_id) as member_count
+            FROM notification_lists nl
+            LEFT JOIN notification_list_members nlm ON nl.id = nlm.list_id
+            GROUP BY nl.id
+            ORDER BY 
+                CASE nl.severity_trigger
+                    WHEN 'CRITIC' THEN 1
+                    WHEN 'HIGH' THEN 2
+                    WHEN 'MEDIUM' THEN 3
+                    ELSE 4
+                END;
+        """)
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.get("/api/notifications/targets/{incident_id}")
+def get_notification_targets(incident_id: int):
+    """Cine ar fi notificat dacă s-ar trimite pentru acest incident."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute(
+            "SELECT * FROM get_notification_targets(%s);",
+            (incident_id,)
+        )
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.post("/api/notifications/send/{incident_id}")
+def send_notifications(
+    incident_id: int,
+    triggered_by: Optional[int] = None,
+    current_user: dict = Depends(get_mock_user),
+):
+    """Execută trimiterea (simulată) pentru un incident.
+    triggered_by se ia automat din user-ul curent dacă nu e furnizat."""
+    # Dacă nu primim triggered_by explicit, folosim user-ul curent
+    if triggered_by is None:
+        triggered_by = current_user.get("id")
+    
+    conn = get_db_connection()
+    db_cursor = conn.cursor()
+    try:
+        db_cursor.execute(
+            "SELECT dispatch_notifications(%s, %s);",
+            (incident_id, triggered_by)
+        )
+        sent_count = db_cursor.fetchone()[0]
+        conn.commit()
+        return {"sent_count": sent_count, "status": "success"}
+    except Exception as e:
+        conn.rollback()
+        return {"sent_count": 0, "status": "error", "message": str(e)}
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.get("/api/notifications/log")
+def get_notification_log(
+    incident_id: Optional[int] = Query(None),
+    user_id: Optional[int] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Istoric notificări cu filtre parametrizate."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        conditions = []
+        params = []
+        
+        if incident_id is not None:
+            conditions.append("nl.incident_id = %s")
+            params.append(incident_id)
+        if user_id is not None:
+            conditions.append("nl.user_id = %s")
+            params.append(user_id)
+        
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+        params.append(limit)
+        
+        query = f"""
+            SELECT 
+                nl.id,
+                nl.incident_id,
+                nl.user_id,
+                nl.list_name,
+                nl.delivery_method,
+                nl.rendered_subject,
+                nl.rendered_body,
+                nl.sent_at,
+                nl.delivery_status,
+                u.name as user_name,
+                u.email as user_email,
+                u.role as user_role
+            FROM notification_log nl
+            LEFT JOIN users u ON nl.user_id = u.id
+            {where_clause}
+            ORDER BY nl.sent_at DESC
+            LIMIT %s
+        """
+        
+        db_cursor.execute(query, params)
         return db_cursor.fetchall()
     finally:
         db_cursor.close()
