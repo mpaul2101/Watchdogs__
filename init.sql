@@ -300,7 +300,6 @@ INSERT INTO notification_templates (name, severity, subject_template, body_templ
     )
 ON CONFLICT DO NOTHING;
 
---procedura pentru a asigna in functie de "culoare"
 CREATE OR REPLACE FUNCTION get_notification_targets(p_incident_id INT)
 RETURNS TABLE (
     user_id INT,
@@ -329,53 +328,53 @@ BEGIN
     END IF;
     
     RETURN QUERY
-    
-    -- 1. Membri din lista de distribuție pentru severitatea respectivă
-    SELECT 
-        u.id,
-        u.name::VARCHAR,
-        u.email::VARCHAR,
-        u.role::VARCHAR,
-        nl.name::VARCHAR AS list_name,
-        ('Member of ' || nl.name || ' distribution list')::VARCHAR AS reason,
-        1 AS priority
-    FROM notification_lists nl
-    JOIN notification_list_members nlm ON nl.id = nlm.list_id
-    JOIN users u ON nlm.user_id = u.id
-    WHERE nl.severity_trigger = inc_severity
-    
-    UNION
-    
-    -- 2. Engineer-ul on-call din echipa asignată
-    SELECT 
-        u.id,
-        u.name::VARCHAR,
-        u.email::VARCHAR,
-        u.role::VARCHAR,
-        'on_call_team'::VARCHAR AS list_name,
-        ('On-call engineer for ' || inc_team || ' team')::VARCHAR AS reason,
-        2 AS priority
-    FROM users u
-    WHERE u.team_name = inc_team 
-      AND u.on_call_status = TRUE
-      AND u.role = 'Engineer'
-    
-    UNION
-    
-    -- 3. System Manager al echipei asignate
-    SELECT 
-        u.id,
-        u.name::VARCHAR,
-        u.email::VARCHAR,
-        u.role::VARCHAR,
-        'team_manager'::VARCHAR AS list_name,
-        ('System Manager of ' || inc_team || ' team')::VARCHAR AS reason,
-        3 AS priority
-    FROM users u
-    WHERE u.team_name = inc_team 
-      AND u.role = 'System Manager'
-    
-    ORDER BY priority, user_name;
+    SELECT * FROM (
+        -- 1. Membri din lista de distribuție pentru severitatea respectivă
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            nl.name::VARCHAR AS list_name,
+            ('Member of ' || nl.name || ' distribution list')::VARCHAR AS notification_reason,
+            1 AS priority
+        FROM notification_lists nl
+        JOIN notification_list_members nlm ON nl.id = nlm.list_id
+        JOIN users u ON nlm.user_id = u.id
+        WHERE nl.severity_trigger = inc_severity
+        
+        UNION
+        
+        -- 2. Engineer-ul on-call din echipa asignată
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            'on_call_team'::VARCHAR AS list_name,
+            ('On-call engineer for ' || inc_team || ' team')::VARCHAR AS notification_reason,
+            2 AS priority
+        FROM users u
+        WHERE u.team_name = inc_team 
+          AND u.on_call_status = TRUE
+          AND u.role = 'Engineer'
+        
+        UNION
+        
+        -- 3. System Manager al echipei asignate
+        SELECT 
+            u.id AS user_id,
+            u.name::VARCHAR AS user_name,
+            u.email::VARCHAR AS user_email,
+            u.role::VARCHAR AS user_role,
+            'team_manager'::VARCHAR AS list_name,
+            ('System Manager of ' || inc_team || ' team')::VARCHAR AS notification_reason,
+            3 AS priority
+        FROM users u
+        WHERE u.team_name = inc_team 
+          AND u.role = 'System Manager'
+    ) AS combined
+    ORDER BY combined.priority, combined.user_name;
 END;
 $$;
 
