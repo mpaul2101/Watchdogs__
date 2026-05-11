@@ -1,16 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { fetchTeams, updateIncident } from '../services/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export function ReassignModal({ incident, onClose, onSuccess }) {
   const [team, setTeam] = useState(incident.assigned_team || '');
-  const [assignedTo, setAssignedTo] = useState(incident.assigned_to || '');
+  const [assignedPersonId, setAssignedPersonId] = useState(incident.assigned_person ?? '');
   const [teams, setTeams] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const { users } = useAuth();
   
   // Fetch lista echipelor disponibile
   useEffect(() => {
     fetchTeams().then(setTeams).catch(console.error);
   }, []);
+
+  const engineers = useMemo(() => {
+    return users.filter(
+      (u) => u.role === 'Engineer' && (!team || u.team_name === team)
+    );
+  }, [users, team]);
+
+  useEffect(() => {
+    if (!assignedPersonId) return;
+    const selected = engineers.find((u) => u.id === Number(assignedPersonId));
+    if (!selected) setAssignedPersonId('');
+  }, [engineers, assignedPersonId]);
   
   // Esc pentru închidere
   useEffect(() => {
@@ -26,8 +40,9 @@ export function ReassignModal({ incident, onClose, onSuccess }) {
     try {
       const updates = {};
       if (team !== incident.assigned_team) updates.assigned_team = team;
-      if (assignedTo !== (incident.assigned_to || '')) {
-        updates.assigned_to = assignedTo || null;
+      const currentAssigned = incident.assigned_person ?? '';
+      if (String(currentAssigned) !== String(assignedPersonId)) {
+        updates.assigned_person = assignedPersonId ? Number(assignedPersonId) : null;
       }
       
       if (Object.keys(updates).length > 0) {
@@ -77,22 +92,22 @@ export function ReassignModal({ incident, onClose, onSuccess }) {
             ))}
           </div>
           
-          <div className="modal-section">Assigned to (engineer name)</div>
-          <input
-            type="text"
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-            placeholder="Leave empty for unassigned"
-            style={{
-              width: '100%',
-              padding: '8px 10px',
-              background: 'var(--bg-3)',
-              border: '1px solid var(--border-2)',
-              color: 'var(--fg-1)',
-              fontSize: 12,
-              fontFamily: 'var(--font-mono)',
-            }}
-          />
+          <div className="modal-section">Assign engineer</div>
+          <select
+            className="modal-select"
+            value={assignedPersonId}
+            onChange={(e) => setAssignedPersonId(e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {engineers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} — {u.team_name}
+              </option>
+            ))}
+          </select>
+          {engineers.length === 0 && (
+            <div className="modal-hint">No engineers available for this team.</div>
+          )}
         </div>
         
         <div className="modal-footer">

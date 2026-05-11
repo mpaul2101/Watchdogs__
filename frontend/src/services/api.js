@@ -1,6 +1,20 @@
 // Base URL pentru API-ul tău FastAPI
 const API_BASE_URL = 'http://localhost:8000';
 
+let mockUserId = null;
+
+export function setMockUserId(id) {
+  mockUserId = id != null ? Number(id) : null;
+}
+
+function buildHeaders(extra = {}) {
+  const headers = { ...extra };
+  if (mockUserId != null) {
+    headers['X-Mock-User-Id'] = String(mockUserId);
+  }
+  return headers;
+}
+
 // Helper generic pentru GET requests
 async function apiGet(endpoint, params = {}) {
   // Construim query string din params (ex: ?status=OPEN&severity=CRITIC)
@@ -13,7 +27,7 @@ async function apiGet(endpoint, params = {}) {
     ? `${API_BASE_URL}${endpoint}?${queryString}`
     : `${API_BASE_URL}${endpoint}`;
   
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: buildHeaders() });
   
   if (!response.ok) {
     throw new Error(`API error ${response.status}: ${response.statusText}`);
@@ -26,7 +40,7 @@ async function apiGet(endpoint, params = {}) {
 async function apiPatch(endpoint, body) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   });
   
@@ -44,6 +58,11 @@ async function apiPatch(endpoint, body) {
 // Health/heatmap data — apelează procedura ta!
 export function fetchInfrastructureHealth() {
   return apiGet('/api/health');
+}
+
+// Users
+export function fetchUsers() {
+  return apiGet('/api/users');
 }
 
 // Incidente cu filtre opționale
