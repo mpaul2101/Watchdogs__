@@ -52,7 +52,8 @@ INSERT INTO users (name, email, team_name, role, on_call_status)
 VALUES
     ('Elena', 'elena@watchdogs.local', 'Executive', 'CEO', FALSE),
     ('Maria', 'maria@watchdogs.local', 'Infrastructure', 'System Manager', TRUE),
-    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE)
+    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE),
+    ('Alex',  'alex@watchdogs.local', 'NOC', 'Incident Manager', FALSE)
 ON CONFLICT (email) DO UPDATE SET
     name = EXCLUDED.name,
     team_name = EXCLUDED.team_name,
@@ -100,18 +101,26 @@ CREATE TABLE IF NOT EXISTS incidents (
     title VARCHAR(200),
     severity VARCHAR(20),        -- 'CRITIC', 'HIGH', 'MEDIUM', 'LOW'
     status VARCHAR(20) DEFAULT 'OPEN',
+    triage_status VARCHAR(20) DEFAULT 'Unassigned',
     assigned_team VARCHAR(50),   -- echipa responsabila (ex: 'Infrastructure')
     assigned_person INT,         -- FK catre users.id
     assigned_to VARCHAR(50),     -- inginer specific in cadrul echipei (optional)
+    bridge_required BOOLEAN DEFAULT FALSE,
+    bridge_status VARCHAR(20) DEFAULT 'Not Started',
+    bridge_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS server_id VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS metric_type VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS triage_status VARCHAR(20) DEFAULT 'Unassigned';
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_team VARCHAR(50);
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_person INT;
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_required BOOLEAN DEFAULT FALSE;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_status VARCHAR(20) DEFAULT 'Not Started';
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_url TEXT;
 
 -- Cautare rapida pentru deduplicare: "exista deja un OPEN pentru asta?"
 CREATE INDEX IF NOT EXISTS idx_incidents_open_lookup

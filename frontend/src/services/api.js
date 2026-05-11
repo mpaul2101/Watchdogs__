@@ -51,6 +51,25 @@ async function apiPatch(endpoint, body) {
   return response.json();
 }
 
+// Helper pentru POST requests
+async function apiPost(endpoint, body = null) {
+  const options = {
+    method: 'POST',
+    headers: buildHeaders(body ? { 'Content-Type': 'application/json' } : {}),
+  };
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 // =======================================================
 // ENDPOINTS — câte o funcție per endpoint
 // =======================================================
@@ -88,4 +107,9 @@ export function fetchTeams() {
 // Update incident (reassign, status change)
 export function updateIncident(incidentId, updates) {
   return apiPatch(`/api/incidents/${incidentId}`, updates);
+}
+
+// Bridge call
+export function startBridgeCall(incidentId) {
+  return apiPost(`/api/incidents/${incidentId}/bridge`);
 }
