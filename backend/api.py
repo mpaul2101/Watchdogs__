@@ -364,6 +364,134 @@ def get_infrastructure_health():
         conn.close()
 
 
+# Returneaza lista de probleme recurente
+@app.get("/api/problems")
+def get_problems():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT escalate_recurring_incidents();")
+    conn.commit()
+
+    cur.execute("""
+        SELECT
+            id,
+            server_id,
+            metric_type,
+            title,
+            description,
+            severity,
+            status,
+            occurrence_count,
+            first_seen,
+            last_seen,
+            probable_cause,
+            suggested_fix,
+            created_at,
+            updated_at
+        FROM problems
+        ORDER BY severity DESC, last_seen DESC;
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "id": row[0],
+            "server_id": row[1],
+            "metric_type": row[2],
+            "title": row[3],
+            "description": row[4],
+            "severity": row[5],
+            "status": row[6],
+            "occurrence_count": row[7],
+            "first_seen": row[8],
+            "last_seen": row[9],
+            "probable_cause": row[10],
+            "suggested_fix": row[11],
+            "created_at": row[12],
+            "updated_at": row[13],
+        }
+        for row in rows
+    ]
+# Returneaza detaliile unei singure probleme selectate din UI
+@app.get("/api/problems/{problem_id}")
+def get_problem(problem_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            id,
+            server_id,
+            metric_type,
+            title,
+            description,
+            severity,
+            status,
+            occurrence_count,
+            first_seen,
+            last_seen,
+            probable_cause,
+            suggested_fix,
+            created_at,
+            updated_at
+        FROM problems
+        WHERE id = %s;
+    """, (problem_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if row is None:
+        return {"error": "Problem not found"}
+
+    return {
+        "id": row[0],
+        "server_id": row[1],
+        "metric_type": row[2],
+        "title": row[3],
+        "description": row[4],
+        "severity": row[5],
+        "status": row[6],
+        "occurrence_count": row[7],
+        "first_seen": row[8],
+        "last_seen": row[9],
+        "probable_cause": row[10],
+        "suggested_fix": row[11],
+        "created_at": row[12],
+        "updated_at": row[13],
+    }
+# Returneaza timeline-ul problemei: toate momentele cand aceasta a reaparut
+@app.get("/api/problems/{problem_id}/timeline")
+def get_problem_timeline_api(problem_id: int):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT * FROM get_problem_timeline(%s);",
+        (problem_id,)
+    )
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "occurred_at": row[0],
+            "value": float(row[1]),
+            "threshold": float(row[2])
+        }
+        for row in rows
+    ]
+
+
 # =====================================================================
 # NOTIFICATIONS — Persoana 3 (Paul)
 # =====================================================================
@@ -490,3 +618,4 @@ def get_notification_log(
     finally:
         db_cursor.close()
         conn.close()
+

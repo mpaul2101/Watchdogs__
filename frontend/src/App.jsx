@@ -7,6 +7,7 @@ import { AlarmRail } from './components/AlarmRail.jsx';
 import { NotificationsList } from './components/NotificationsList.jsx';
 import { IncidentPanel } from './components/IncidentPanel.jsx';
 import { TeamsPage } from './components/TeamsPage.jsx';
+import { ProblemsPage } from './components/ProblemsPage.jsx';
 import { useApiData } from './hooks/useApiData.js';
 import { fetchAlarms, fetchIncidents, fetchInfrastructureHealth } from './services/api.js';
 import { useAuth } from './context/AuthContext.jsx';
@@ -17,6 +18,7 @@ const PATH_TO_PAGE = {
   '/servers': 'srv',
   '/alarms': 'alm',
   '/teams': 'team',
+  '/problems': 'prob',
   '/settings': 'set',
 };
 
@@ -26,6 +28,7 @@ const PAGE_TO_PATH = {
   srv: '/servers',
   alm: '/alarms',
   team: '/teams',
+  prob: '/problems',
   set: '/settings',
 };
 
@@ -40,8 +43,10 @@ export function App() {
       const nextPage = PATH_TO_PAGE[window.location.pathname] || 'dash';
       setPage(nextPage);
     };
+
     syncRoute();
     window.addEventListener('popstate', syncRoute);
+
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
 
@@ -49,38 +54,51 @@ export function App() {
     setSelectedIncident(null);
     setShowAlarms(false);
   }, [currentUser?.id]);
-  
+
   // Preluăm datele reale din API pentru contoarele din Sidebar/Header
   const { data: alarms } = useApiData(() => fetchAlarms(), { refreshMs: 5000 });
+
   const { data: incidents } = useApiData(() => fetchIncidents(), {
     refreshMs: 5000,
     enabled: !!currentUser,
     deps: [currentUser?.id],
   });
-  const { data: health } = useApiData(() => fetchInfrastructureHealth(), { refreshMs: 5000 });
-  
+
+  const { data: health } = useApiData(() => fetchInfrastructureHealth(), {
+    refreshMs: 5000,
+  });
+
   const counts = {
-    open: incidents?.filter(i => i.status === 'OPEN').length || 0,
-    crit: incidents?.filter(i => i.severity === 'CRITIC').length || 0,
+    open: incidents?.filter((i) => i.status === 'OPEN').length || 0,
+    crit: incidents?.filter((i) => i.severity === 'CRITIC').length || 0,
     servers: health?.length || 0,
     alarms: alarms?.length || 0,
   };
-  
+
   const globalState = counts.crit > 0 ? 'err' : counts.open > 3 ? 'warn' : 'ok';
-  
+
   const handleNav = (newPage) => {
     setShowAlarms(false);
-    if (selectedIncident) setSelectedIncident(null);
+
+    if (selectedIncident) {
+      setSelectedIncident(null);
+    }
+
     const path = PAGE_TO_PATH[newPage] || '/';
+
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path);
     }
+
     setPage(newPage);
   };
 
   const handleIncidentSelect = (incident) => {
     setSelectedIncident(incident);
-    if (showAlarms) setShowAlarms(false); // Close alarms if opening incident
+
+    if (showAlarms) {
+      setShowAlarms(false);
+    }
   };
 
   const handleIncidentUpdate = (updatedIncident) => {
@@ -89,7 +107,7 @@ export function App() {
       return { ...prev, ...updatedIncident };
     });
   };
-  
+
   return (
     <div className="app">
       <Header
@@ -98,26 +116,31 @@ export function App() {
         critCount={counts.crit}
         onNav={handleNav}
       />
+
       <div className="body">
         <Sidebar
           counts={counts}
           currentPage={page}
           onNav={handleNav}
         />
-        
+
         {page === 'dash' && (
           <main className={`main ${selectedIncident || showAlarms ? 'has-panel' : ''}`}>
             <div className="main-left">
               <Heatmap />
-              <IncidentsList onIncidentSelect={handleIncidentSelect} selectedIncidentId={selectedIncident?.id} />
+
+              <IncidentsList
+                onIncidentSelect={handleIncidentSelect}
+                selectedIncidentId={selectedIncident?.id}
+              />
             </div>
-            
+
             {(selectedIncident || showAlarms) && (
               <div className="main-right slide-in">
                 {selectedIncident ? (
-                  <IncidentPanel 
-                    incident={selectedIncident} 
-                    onClose={() => setSelectedIncident(null)} 
+                  <IncidentPanel
+                    incident={selectedIncident}
+                    onClose={() => setSelectedIncident(null)}
                     onUpdate={handleIncidentUpdate}
                   />
                 ) : (
@@ -127,10 +150,16 @@ export function App() {
             )}
           </main>
         )}
-        
+
         {page === 'team' && (
           <main className="main full">
             <TeamsPage />
+          </main>
+        )}
+
+        {page === 'prob' && (
+          <main className="main full">
+            <ProblemsPage />
           </main>
         )}
 
@@ -143,14 +172,14 @@ export function App() {
           </main>
         )}
 
-        {page !== 'dash' && page !== 'team' && page !== 'alm' && (
+        {page !== 'dash' && page !== 'team' && page !== 'prob' && page !== 'alm' && (
           <main className="main full">
             <div style={{ padding: '24px' }}>
               <h2 style={{ fontSize: '14px', marginBottom: '8px' }}>
                 Page: {page}
               </h2>
               <p style={{ color: 'var(--fg-3)', fontSize: '11px' }}>
-                În construcție. Pentru moment, doar dashboard-ul afișează.
+                În construcție. Pentru moment, dashboard-ul, Teams, Alarms și Problems afișează date.
               </p>
             </div>
           </main>

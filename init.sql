@@ -92,7 +92,282 @@ BEGIN
     END IF;
 END $$;
 
+-- 3. Probleme = tipare recurente detectate din alarme/incidente repetate
+CREATE TABLE IF NOT EXISTS problems (
+    id SERIAL PRIMARY KEY,
+    server_id TEXT NOT NULL,
+    metric_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'open',
+    occurrence_count INT NOT NULL DEFAULT 0,
+    first_seen TIMESTAMP NOT NULL,
+    last_seen TIMESTAMP NOT NULL,
+    probable_cause TEXT,
+    suggested_fix TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_problem_per_server_metric UNIQUE (server_id, metric_type)
+);
 
+<<<<<<< Updated upstream
+=======
+CREATE UNIQUE INDEX IF NOT EXISTS idx_problems_unique_server_metric
+ON problems (server_id, metric_type);
+
+--problems tine rezumatul, iar aici tinem fiecare moment cand problema reapare.
+CREATE TABLE IF NOT EXISTS problem_occurrences (
+    id SERIAL PRIMARY KEY,
+    problem_id INT REFERENCES problems(id) ON DELETE CASCADE,
+    occurred_at TIMESTAMP NOT NULL,
+    value NUMERIC NOT NULL,
+    threshold NUMERIC NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_problem_occurrences_unique --evitam duplicatele
+ON problem_occurrences (problem_id, occurred_at);
+
+CREATE OR REPLACE FUNCTION get_problem_timeline(input_problem_id INT)
+RETURNS TABLE (
+    occurred_at TIMESTAMP,
+    value NUMERIC,
+    threshold NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        po.occurred_at,
+        po.value,
+        po.threshold
+    FROM problem_occurrences po
+    WHERE po.problem_id = input_problem_id
+    ORDER BY po.occurred_at;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Detecteaza probleme recurente din metrics, 
+-- O aparitie se numara doar cand metrica trece de sub prag peste prag.
+CREATE OR REPLACE FUNCTION escalate_recurring_incidents()
+RETURNS VOID AS $$
+BEGIN
+    --Creeaza sau actualizeaza problemele recurente in tabela problems
+    INSERT INTO problems (
+        server_id,
+        metric_type,
+        title,
+        description,
+        severity,
+        status,
+        occurrence_count,
+        first_seen,
+        last_seen,
+        probable_cause,
+        suggested_fix,
+        updated_at
+    )
+    SELECT
+        recurring.server_id,
+        recurring.metric_type,
+        'Recurring high ' || UPPER(recurring.metric_type) || ' usage' AS title,
+        'The server ' || recurring.server_id || ' repeatedly crossed the ' || recurring.metric_type || ' threshold in the last 24 hours.' AS description,
+        recurring.severity,
+        'open' AS status,
+        recurring.occurrence_count,
+        recurring.first_seen,
+        recurring.last_seen,
+        recurring.probable_cause,
+        recurring.suggested_fix,
+        CURRENT_TIMESTAMP
+    FROM (
+        SELECT
+            server_id,
+            metric_type,
+            COUNT(*) AS occurrence_count,
+            MIN(timestamp) AS first_seen,
+            MAX(timestamp) AS last_seen,
+            CASE
+                WHEN metric_type = 'cpu' AND MAX(value) >= 95 THEN 'critical'
+                WHEN metric_type = 'ram' AND MAX(value) >= 95 THEN 'critical'
+                WHEN metric_type = 'disk' AND MAX(value) >= 95 THEN 'critical'
+                WHEN metric_type = 'response_time' AND MAX(value) >= 320 THEN 'critical'
+                ELSE 'high'
+            END AS severity,
+            CASE
+                WHEN metric_type = 'cpu' THEN 'CPU saturation caused by repeated workload spikes.'
+                WHEN metric_type = 'ram' THEN 'Possible memory leak or recurring memory pressure.'
+                WHEN metric_type = 'disk' THEN 'Recurring storage pressure or disk usage growth.'
+                WHEN metric_type = 'response_time' THEN 'Recurring backend latency or overloaded service.'
+                ELSE 'Recurring infrastructure issue.'
+            END AS probable_cause,
+            CASE
+                WHEN metric_type = 'cpu' THEN 'Investigate recurring CPU-heavy processes or scheduled jobs.'
+                WHEN metric_type = 'ram' THEN 'Check if memory usage drops after recovery and rises again later.'
+                WHEN metric_type = 'disk' THEN 'Check logs, temporary files, and repeated storage growth.'
+                WHEN metric_type = 'response_time' THEN 'Check recurring latency patterns, database queries, and dependencies.'
+                ELSE 'Investigate repeated infrastructure events.'
+            END AS suggested_fix
+        FROM (
+            SELECT
+                server_id,
+                metric_type,
+                value,
+                threshold,
+                timestamp,
+                is_breach,
+                LAG(is_breach) OVER (
+                    PARTITION BY server_id, metric_type
+                    ORDER BY timestamp
+                ) AS previous_is_breach
+            FROM (
+                SELECT
+                    server_id,
+                    'cpu' AS metric_type,
+                    cpu AS value,
+                    90::NUMERIC AS threshold,
+                    timestamp,
+                    cpu > 90 AS is_breach
+                FROM metrics
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+                UNION ALL
+
+                SELECT
+                    server_id,
+                    'ram' AS metric_type,
+                    ram AS value,
+                    90::NUMERIC AS threshold,
+                    timestamp,
+                    ram > 90 AS is_breach
+                FROM metrics
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+                UNION ALL
+
+                SELECT
+                    server_id,
+                    'disk' AS metric_type,
+                    disk AS value,
+                    85::NUMERIC AS threshold,
+                    timestamp,
+                    disk > 85 AS is_breach
+                FROM metrics
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+                UNION ALL
+
+                SELECT
+                    server_id,
+                    'response_time' AS metric_type,
+                    response_time_ms AS value,
+                    250::NUMERIC AS threshold,
+                    timestamp,
+                    response_time_ms > 250 AS is_breach
+                FROM metrics
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+            ) normalized_metrics
+        ) marked_metrics
+        WHERE is_breach = TRUE
+          AND COALESCE(previous_is_breach, FALSE) = FALSE
+        GROUP BY server_id, metric_type
+        HAVING COUNT(*) >= 2
+    ) recurring
+    ON CONFLICT (server_id, metric_type)
+    DO UPDATE SET
+        occurrence_count = EXCLUDED.occurrence_count,
+        first_seen = EXCLUDED.first_seen,
+        last_seen = EXCLUDED.last_seen,
+        severity = EXCLUDED.severity,
+        description = EXCLUDED.description,
+        probable_cause = EXCLUDED.probable_cause,
+        suggested_fix = EXCLUDED.suggested_fix,
+        updated_at = CURRENT_TIMESTAMP;
+
+
+    --Salveaza fiecare aparitie concreta in problem_occurrences
+    INSERT INTO problem_occurrences (
+        problem_id,
+        occurred_at,
+        value,
+        threshold
+    )
+    SELECT
+        p.id AS problem_id,
+        detected.timestamp AS occurred_at,
+        detected.value,
+        detected.threshold
+    FROM problems p
+    JOIN (
+        SELECT
+            server_id,
+            metric_type,
+            value,
+            threshold,
+            timestamp,
+            is_breach,
+            --LAG ne spune daca la masuratoarea anterioara eram deja peste prag
+            LAG(is_breach) OVER (
+                PARTITION BY server_id, metric_type
+                ORDER BY timestamp
+            ) AS previous_is_breach
+        FROM (
+            SELECT
+                server_id,
+                'cpu' AS metric_type,
+                cpu AS value,
+                90::NUMERIC AS threshold,
+                timestamp,
+                cpu > 90 AS is_breach
+            FROM metrics
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+            UNION ALL
+
+            SELECT
+                server_id,
+                'ram' AS metric_type,
+                ram AS value,
+                90::NUMERIC AS threshold,
+                timestamp,
+                ram > 90 AS is_breach
+            FROM metrics
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+            UNION ALL
+
+            SELECT
+                server_id,
+                'disk' AS metric_type,
+                disk AS value,
+                85::NUMERIC AS threshold,
+                timestamp,
+                disk > 85 AS is_breach
+            FROM metrics
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+
+            UNION ALL
+
+            SELECT
+                server_id,
+                'response_time' AS metric_type,
+                response_time_ms AS value,
+                250::NUMERIC AS threshold,
+                timestamp,
+                response_time_ms > 250 AS is_breach
+            FROM metrics
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+        ) normalized_metrics
+    ) detected
+      ON p.server_id = detected.server_id
+     AND p.metric_type = detected.metric_type
+    WHERE detected.is_breach = TRUE
+      AND COALESCE(detected.previous_is_breach, FALSE) = FALSE
+    ON CONFLICT (problem_id, occurred_at) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql;
+
+>>>>>>> Stashed changes
 -- 4. Incidente = tickete pentru oameni (deduplicate per server+metrica)
 CREATE TABLE IF NOT EXISTS incidents (
     id SERIAL PRIMARY KEY,

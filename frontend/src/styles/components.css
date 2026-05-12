@@ -1403,7 +1403,6 @@
   font-weight: 500;
   cursor: pointer;
 }
-
 .ip-btn-status:disabled,
 .ip-btn-action:disabled,
 .ip-btn-primary:disabled {
@@ -1524,6 +1523,298 @@
 }
 
 /* ===========================================
+/* ===========================================
+   PROBLEMS PAGE
+   Lista de probleme recurente + detail panel cu timeline.
+=========================================== */
+
+.problems-page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 1px;
+  min-width: 0;
+  background: var(--border-1);
+}
+
+.problems-list-panel,
+.problem-detail-panel {
+  background: var(--bg-1);
+  overflow: auto;
+}
+
+.problems-list-panel {
+  padding: 18px;
+}
+
+.problems-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-kicker,
+.detail-kicker,
+.detail-label {
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.problems-toolbar h1 {
+  font-size: 16px;
+  color: var(--fg-1);
+  font-weight: 600;
+}
+
+.problems-count {
+  border: 1px solid var(--border-2);
+  color: var(--fg-2);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 2px;
+}
+
+.problems-list {
+  display: grid;
+  gap: 8px;
+}
+
+.problem-card {
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--border-1);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.problem-card:hover {
+  background: var(--bg-3);
+  border-color: var(--border-2);
+}
+
+.problem-card.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.problem-card-top,
+.problem-card-bottom,
+.problem-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.problem-card-top {
+  margin-bottom: 8px;
+}
+
+.problem-title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.problem-meta,
+.problem-card-bottom {
+  color: var(--fg-2);
+  font-size: 11px;
+}
+
+.problem-meta {
+  margin-bottom: 8px;
+}
+
+.problem-meta span {
+  border: 1px solid var(--border-1);
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.problem-card-bottom {
+  justify-content: space-between;
+}
+
+.problem-severity {
+  text-transform: uppercase;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+}
+
+.problem-severity.sev-critical {
+  color: var(--sev-critical);
+  background: var(--sev-critical-bg);
+}
+
+.problem-severity.sev-high {
+  color: var(--sev-high);
+  background: var(--sev-high-bg);
+}
+
+.problem-severity.sev-medium {
+  color: var(--sev-medium);
+  background: var(--sev-medium-bg);
+}
+
+.problem-severity.sev-low {
+  color: var(--sev-low);
+  background: var(--sev-low-bg);
+}
+
+.severity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.severity-dot.sev-critical {
+  background: var(--sev-critical);
+}
+
+.severity-dot.sev-high {
+  background: var(--sev-high);
+}
+
+.severity-dot.sev-medium {
+  background: var(--sev-medium);
+}
+
+.severity-dot.sev-low {
+  background: var(--sev-low);
+}
+
+.problem-detail-panel {
+  border-left: 1px solid var(--border-1);
+  padding: 18px;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-1);
+  margin-bottom: 14px;
+}
+
+.detail-header h2 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.detail-grid div {
+  border: 1px solid var(--border-1);
+  background: var(--bg-2);
+  padding: 9px;
+}
+
+.detail-grid span {
+  display: block;
+  color: var(--fg-3);
+  font-size: 10px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.detail-grid strong {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+
+.detail-section {
+  border-top: 1px solid var(--border-1);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.detail-section p {
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+.timeline-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+}
+
+.timeline-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 5px;
+  box-shadow: 0 0 0 4px var(--accent-bg);
+}
+
+.timeline-content {
+  border: 1px solid var(--border-1);
+  background: var(--bg-2);
+  padding: 8px;
+}
+
+.timeline-time {
+  color: var(--fg-1);
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.timeline-values {
+  color: var(--fg-2);
+  font-size: 11px;
+}
+
+.timeline-empty,
+.problems-state,
+.empty-detail {
+  color: var(--fg-3);
+  font-size: 12px;
+  padding: 16px;
+  border: 1px dashed var(--border-2);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.problems-state.error {
+  color: var(--sev-critical);
+  border-color: var(--sev-critical);
+  background: var(--sev-critical-bg);
+}
+
+.empty-detail-title {
+  color: var(--fg-1);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.empty-detail-text {
+  color: var(--fg-2);
+}
+
+/* ===========================================
    NOTIFICATIONS — Modal & List
    =========================================== */
 
@@ -1628,7 +1919,7 @@
   padding: 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #00ff00; /* Terminal vibe */
+  color: #00ff00;
   line-height: 1.5;
   border-radius: 2px;
 }
@@ -1711,7 +2002,8 @@
   gap: 8px;
 }
 
-.nl-search-input, .nl-filter-select {
+.nl-search-input,
+.nl-filter-select {
   background: var(--bg-3);
   border: 1px solid var(--border-2);
   color: var(--fg-1);
@@ -1720,7 +2012,8 @@
   border-radius: 2px;
 }
 
-.nl-search-input:focus, .nl-filter-select:focus {
+.nl-search-input:focus,
+.nl-filter-select:focus {
   border-color: var(--accent);
   outline: none;
 }
@@ -1815,7 +2108,7 @@
   border: 1px solid transparent;
   border-radius: 10px;
   letter-spacing: 0.05em;
-  background: rgba(0,0,0,0.2);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .nl-card-subject {
@@ -1836,8 +2129,15 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .nl-details-meta {
@@ -1865,7 +2165,9 @@
   border: 1px solid var(--border-1);
 }
 
-.loading-state, .error-state, .no-data-state {
+.loading-state,
+.error-state,
+.no-data-state {
   text-align: center;
   padding: 40px;
   font-size: 12px;
