@@ -152,11 +152,11 @@ def get_incidents(
         conditions.append("i.assigned_team = %s")
         params.append(current_user.get("team_name"))
     elif role == "Engineer":
-        conditions.append("i.assigned_person = %s")
-        params.append(current_user.get("id"))
+        conditions.append("i.assigned_team = %s AND (i.assigned_person = %s OR i.assigned_person IS NULL)")
+        params.extend([current_user.get("team_name"), current_user.get("id")])
     elif role == "Incident Manager":
         pass
-    elif role == "CEO":
+    elif role == "CEO" or role == "CTO":
         pass
     else:
         raise HTTPException(status_code=403, detail="Role not allowed")
@@ -304,6 +304,25 @@ def update_incident(
             params,
         )
         row = db_cursor.fetchone()
+        
+        # If an engineer was assigned/reassigned, create a notification
+        if "assigned_person" in updates and updates["assigned_person"] is not None:
+            db_cursor.execute(
+                """
+                INSERT INTO notification_log (
+                    incident_id, user_id, list_name, delivery_method,
+                    rendered_subject, rendered_body, triggered_by
+                ) VALUES (%s, %s, 'direct_assign', 'in_app', %s, %s, %s)
+                """,
+                (
+                    incident_id,
+                    updates["assigned_person"],
+                    f"ASSIGNMENT: Incident #{incident_id}",
+                    f"You have been assigned incident #{incident_id} by {current_user.get('name')} ({current_user.get('role')}). Please investigate.",
+                    current_user.get("id"),
+                )
+            )
+        
         conn.commit()
         return row
     finally:
@@ -358,6 +377,22 @@ def get_infrastructure_health():
     db_cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
         db_cursor.execute("SELECT * FROM get_infrastructure_health();")
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+@app.get("/api/server-status")
+def get_server_status():
+    """Starea curenta (online/offline) a tuturor serverelor."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("""
+            SELECT server_id, region, status, last_changed
+            FROM server_status
+            ORDER BY server_id
+        """)
         return db_cursor.fetchall()
     finally:
         db_cursor.close()
@@ -574,6 +609,7 @@ def get_notification_log(
     incident_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     limit: int = Query(50, ge=1, le=500),
+    current_user: dict = Depends(get_mock_user),
 ):
     """Istoric notificări cu filtre parametrizate."""
     conn = get_db_connection()
@@ -588,6 +624,18 @@ def get_notification_log(
         if user_id is not None:
             conditions.append("nl.user_id = %s")
             params.append(user_id)
+            
+        role = current_user.get("role")
+        if role in ["CEO", "CTO"]:
+            conditions.append("nl.list_name = 'red'")
+        elif role in ["Engineer", "System Manager"]:
+            conditions.append("(nl.user_id = %s OR nl.triggered_by = %s)")
+            params.extend([current_user.get("id"), current_user.get("id")])
+        elif role == "Incident Manager":
+            conditions.append("nl.triggered_by = %s")
+            params.append(current_user.get("id"))
+        else:
+            raise HTTPException(status_code=403, detail="Role not allowed")
         
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
         params.append(limit)

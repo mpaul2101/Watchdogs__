@@ -35,13 +35,113 @@ def _safe_pct(payload: dict, key: str):
         print(f"[AVERTISMENT] {key} in afara intervalului [0,100]: {v}")
         return None
     return v
+def handle_status_message(msg):
+    """
+    Trateaza mesajele de status (online/offline) venite prin Last Will
+    sau publicate direct de agent.
+    Topic: watchdogs/{region}/{server}/status
+    """
+    status = msg.payload.decode().strip()
+    parts = msg.topic.split("/")
+    if len(parts) < 4:
+        print(f"[AVERTISMENT] Topic status invalid: {msg.topic}")
+        return
+    region = parts[1]
+    server_id = parts[2]
+
+    print(f"[STATUS] {server_id} ({region}) este acum: {status}")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+
+        # 1. Actualizam starea curenta a serverului (upsert: insert sau update)
+        cursor.execute(
+            """
+            INSERT INTO server_status (server_id, region, status, last_changed)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (server_id)
+            DO UPDATE SET
+                status = EXCLUDED.status,
+                region = EXCLUDED.region,
+                last_changed = CURRENT_TIMESTAMP
+            """,
+            (server_id, region, status),
+        )
+
+        # 2. Daca serverul a picat, cream incident NODE_DOWN (cu deduplicare)
+        if status == "offline":
+            cursor.execute(
+                """
+                SELECT id FROM incidents
+                WHERE server_id = %s AND metric_type = 'NODE_DOWN' AND status = 'OPEN'
+                LIMIT 1
+                """,
+                (server_id,),
+            )
+            if cursor.fetchone() is None:
+                cursor.execute(
+                    """
+                    INSERT INTO incidents
+                      (server_id, metric_type, title, severity, status,
+                       triage_status, bridge_required)
+                    VALUES (%s, 'NODE_DOWN', %s, 'CRITIC', 'OPEN', 'Unassigned', TRUE)
+                    RETURNING id
+                    """,
+                    (server_id, f"[CRITIC] Server {server_id} este offline"),
+                )
+                incident_id = cursor.fetchone()[0]
+                cursor.execute(
+                    """
+                    INSERT INTO alarms (server_id, metric_type, severity, message, incident_id)
+                    VALUES (%s, 'NODE_DOWN', 'CRITIC', %s, %s)
+                    """,
+                    (server_id, f"Agentul de pe {server_id} a pierdut conexiunea", incident_id),
+                )
+                print(f"[INCIDENT NOU] #{incident_id} CRITIC NODE_DOWN @ {server_id}")
+        # 3. Daca serverul a revenit, inchidem automat incidentul NODE_DOWN
+        if status == "online":
+            cursor.execute(
+                """
+                SELECT id FROM incidents
+                WHERE server_id = %s AND metric_type = 'NODE_DOWN' AND status = 'OPEN'
+                """,
+                (server_id,),
+            )
+            open_node_down = cursor.fetchall()
+            for (incident_id,) in open_node_down:
+                cursor.execute(
+                    """
+                    UPDATE incidents
+                    SET status = 'RESOLVED', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (incident_id,),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO alarms (server_id, metric_type, severity, message, incident_id)
+                    VALUES (%s, 'NODE_DOWN', 'LOW', %s, %s)
+                    """,
+                    (server_id, f"Serverul {server_id} a revenit online — incident auto-rezolvat", incident_id),
+                )
+                print(f"[AUTO-REZOLVAT] #{incident_id} NODE_DOWN @ {server_id} — server online")
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def on_message_received(client, userdata, msg):
     """
     Gestioneaza mesajele MQTT, le valideaza, le SALVEAZA in baza de date,
     apoi RULEAZA motorul de praguri pentru a emite alarme/incidente.
-    """
+    """# Rutam dupa ultimul nivel al topicului: metrics sau status
+    topic_kind = msg.topic.split("/")[-1]
+
+    if topic_kind == "status":
+        handle_status_message(msg)
+        return
     try:
         # 1. Decodam payload-ul si parsam JSON-ul
         payload = json.loads(msg.payload.decode())
@@ -70,6 +170,12 @@ def on_message_received(client, userdata, msg):
         traffic_users = payload.get("traffic_users")
 
         server_id = payload["server_id"]
+        # Regiunea: din payload, sau din topic ca fallback
+        region = payload.get("region")
+        if region is None:
+            # topic: watchdogs/{region}/{server}/metrics -> piesa [1]
+            parts = msg.topic.split("/")
+            region = parts[1] if len(parts) >= 4 else "unknown"
         # UTC, naive: agentul trimite unix epoch (UTC); DB stocheaza TIMESTAMP
         # without time zone si query-urile motorului folosesc LOCALTIMESTAMP
         # (returneaza UTC daca containerul Postgres ruleaza in UTC).
@@ -80,15 +186,15 @@ def on_message_received(client, userdata, msg):
         try:
             cursor = conn.cursor()
             cursor.execute(
-                """
-                INSERT INTO metrics
-                  (server_id, cpu, ram, disk, response_time_ms, http_5xx_rate,
-                   db_conn_pct, auth_failures, traffic_users, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (server_id, cpu_value, ram_value, disk_value, response_time_ms,
+            """
+             INSERT INTO metrics
+             (server_id, region, cpu, ram, disk, response_time_ms, http_5xx_rate,
+               db_conn_pct, auth_failures, traffic_users, timestamp)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                 (server_id, region, cpu_value, ram_value, disk_value, response_time_ms,
                  http_5xx_rate, db_conn_pct, auth_failures, traffic_users, dt_timestamp),
-            )
+        )
             conn.commit()
             cursor.close()
 

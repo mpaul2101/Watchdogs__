@@ -26,6 +26,8 @@ ALTER TABLE metrics ADD COLUMN IF NOT EXISTS http_5xx_rate NUMERIC;
 ALTER TABLE metrics ADD COLUMN IF NOT EXISTS db_conn_pct NUMERIC;
 ALTER TABLE metrics ADD COLUMN IF NOT EXISTS auth_failures INT;
 ALTER TABLE metrics ADD COLUMN IF NOT EXISTS traffic_users INT;
+-- Regiunea serverului (pentru ierarhia de topicuri MQTT)
+ALTER TABLE metrics ADD COLUMN IF NOT EXISTS region VARCHAR(50);
 
 -- Index pentru interogarile cu fereastra temporala (server_id + interval timp)
 CREATE INDEX IF NOT EXISTS idx_metrics_server_time
@@ -111,8 +113,7 @@ CREATE TABLE IF NOT EXISTS problems (
     CONSTRAINT unique_problem_per_server_metric UNIQUE (server_id, metric_type)
 );
 
-<<<<<<< Updated upstream
-=======
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_problems_unique_server_metric
 ON problems (server_id, metric_type);
 
@@ -367,7 +368,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
->>>>>>> Stashed changes
+
 -- 4. Incidente = tickete pentru oameni (deduplicate per server+metrica)
 CREATE TABLE IF NOT EXISTS incidents (
     id SERIAL PRIMARY KEY,
@@ -727,3 +728,12 @@ BEGIN
     RETURN sent_count;
 END;
 $$;
+
+-- Starea curenta a fiecarui server (online/offline)
+-- O singura linie per server, actualizata la fiecare mesaj de status MQTT
+CREATE TABLE IF NOT EXISTS server_status (
+    server_id VARCHAR(50) PRIMARY KEY,
+    region VARCHAR(50),
+    status VARCHAR(20) NOT NULL DEFAULT 'unknown',  -- 'online' / 'offline'
+    last_changed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
