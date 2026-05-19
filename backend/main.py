@@ -20,7 +20,7 @@ load_dotenv()
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
-MQTT_TOPIC = os.getenv("MQTT_TOPIC", "metrics/cpu")
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "watchdogs/+/+/metrics")
 CLIENT_ID = os.getenv("CLIENT_ID", "python-backend")
 
 
@@ -39,10 +39,13 @@ def on_connect(client, userdata, connect_flags, rc, properties=None):
         print(f"[OK] Conectat la broker MQTT la {MQTT_BROKER}:{MQTT_PORT}")
         # Abonare la topicul de metrici
         try:
-            client.subscribe(MQTT_TOPIC, qos=1)
-            print(f"[OK] Abonat la topicul: {MQTT_TOPIC}")
+            client.subscribe([
+                ("watchdogs/+/+/metrics", 1),
+                ("watchdogs/+/+/status", 1),
+            ])
+            print("[OK] Abonat la metrics si status")
         except Exception as e:
-            print(f"[EROARE] Esuat sa se aboneze la {MQTT_TOPIC}: {e}")
+            print(f"[EROARE] Esuat sa se aboneze: {e}")
     else:
         print(f"[EROARE] Esuat sa se conecteze la brokerul MQTT. Cod: {rc}")
 
