@@ -728,3 +728,12 @@ BEGIN
     RETURN sent_count;
 END;
 $$;
+
+-- Starea curenta a fiecarui server (online/offline)
+-- O singura linie per server, actualizata la fiecare mesaj de status MQTT
+CREATE TABLE IF NOT EXISTS server_status (
+    server_id VARCHAR(50) PRIMARY KEY,
+    region VARCHAR(50),
+    status VARCHAR(20) NOT NULL DEFAULT 'unknown',  -- 'online' / 'offline'
+    last_changed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

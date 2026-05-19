@@ -382,6 +382,22 @@ def get_infrastructure_health():
         db_cursor.close()
         conn.close()
 
+@app.get("/api/server-status")
+def get_server_status():
+    """Starea curenta (online/offline) a tuturor serverelor."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("""
+            SELECT server_id, region, status, last_changed
+            FROM server_status
+            ORDER BY server_id
+        """)
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
 
 # Returneaza lista de probleme recurente
 @app.get("/api/problems")

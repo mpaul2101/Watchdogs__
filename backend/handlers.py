@@ -51,12 +51,26 @@ def handle_status_message(msg):
 
     print(f"[STATUS] {server_id} ({region}) este acum: {status}")
 
-    # Daca un server a picat, cream o alarma + incident
-    if status == "offline":
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            # Evitam duplicate: doar daca nu exista deja un incident OPEN de tip NODE_DOWN
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+
+        # 1. Actualizam starea curenta a serverului (upsert: insert sau update)
+        cursor.execute(
+            """
+            INSERT INTO server_status (server_id, region, status, last_changed)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (server_id)
+            DO UPDATE SET
+                status = EXCLUDED.status,
+                region = EXCLUDED.region,
+                last_changed = CURRENT_TIMESTAMP
+            """,
+            (server_id, region, status),
+        )
+
+        # 2. Daca serverul a picat, cream incident NODE_DOWN (cu deduplicare)
+        if status == "offline":
             cursor.execute(
                 """
                 SELECT id FROM incidents
@@ -84,11 +98,38 @@ def handle_status_message(msg):
                     """,
                     (server_id, f"Agentul de pe {server_id} a pierdut conexiunea", incident_id),
                 )
-                conn.commit()
                 print(f"[INCIDENT NOU] #{incident_id} CRITIC NODE_DOWN @ {server_id}")
-            cursor.close()
-        finally:
-            conn.close()
+        # 3. Daca serverul a revenit, inchidem automat incidentul NODE_DOWN
+        if status == "online":
+            cursor.execute(
+                """
+                SELECT id FROM incidents
+                WHERE server_id = %s AND metric_type = 'NODE_DOWN' AND status = 'OPEN'
+                """,
+                (server_id,),
+            )
+            open_node_down = cursor.fetchall()
+            for (incident_id,) in open_node_down:
+                cursor.execute(
+                    """
+                    UPDATE incidents
+                    SET status = 'RESOLVED', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (incident_id,),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO alarms (server_id, metric_type, severity, message, incident_id)
+                    VALUES (%s, 'NODE_DOWN', 'LOW', %s, %s)
+                    """,
+                    (server_id, f"Serverul {server_id} a revenit online — incident auto-rezolvat", incident_id),
+                )
+                print(f"[AUTO-REZOLVAT] #{incident_id} NODE_DOWN @ {server_id} — server online")
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
 
 def on_message_received(client, userdata, msg):
