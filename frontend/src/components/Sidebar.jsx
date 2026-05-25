@@ -1,108 +1,82 @@
-// Iconițe SVG ca sub-componente, ca să nu poluăm JSX-ul principal
-const icons = {
-  dashboard: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="2" y="2" width="5" height="6"/>
-      <rect x="9" y="2" width="5" height="9"/>
-      <rect x="2" y="10" width="5" height="4"/>
-      <rect x="9" y="13" width="5" height="1"/>
-    </svg>
-  ),
-  incidents: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <path d="M8 2 L14 13 L2 13 Z"/>
-      <line x1="8" y1="6" x2="8" y2="10"/>
-      <circle cx="8" cy="11.5" r="0.4" fill="currentColor"/>
-    </svg>
-  ),
-  servers: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <rect x="2" y="2" width="12" height="4"/>
-      <rect x="2" y="7" width="12" height="4"/>
-      <rect x="2" y="12" width="12" height="2"/>
-      <circle cx="4" cy="4" r="0.5" fill="currentColor"/>
-      <circle cx="4" cy="9" r="0.5" fill="currentColor"/>
-    </svg>
-  ),
-  alarms: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <path d="M3 11 V8 a5 5 0 0 1 10 0 v3 l1 1 H2 Z"/>
-      <path d="M6 13.5 a2 2 0 0 0 4 0"/>
-    </svg>
-  ),
-  teams: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <circle cx="6" cy="6" r="2"/>
-      <circle cx="11" cy="7" r="1.5"/>
-      <path d="M2 13 c0-2 2-3 4-3 s4 1 4 3"/>
-      <path d="M11 13 c0-1.4 1-2 2.5-2"/>
-    </svg>
-  ),
-  settings: (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <circle cx="8" cy="8" r="2"/>
-      <path d="M8 1 v2 M8 13 v2 M1 8 h2 M13 8 h2 M3 3 l1.5 1.5 M11.5 11.5 L13 13 M3 13 l1.5 -1.5 M11.5 4.5 L13 3"/>
-    </svg>
-  ),
-};
+import React from 'react';
+import { useStore } from '../api.js';
+import { Avatar, Icon } from './Common.jsx';
 
-// Sub-componentă pentru un item din sidebar
-function SidebarItem({ id, label, icon, count, alarm, isActive, onClick }) {
-  return (
-    <div
-      className={`sidebar-item ${isActive ? 'active' : ''}`}
-      onClick={onClick}
-    >
-      <span className="si-icon">{icon}</span>
-      <span>{label}</span>
-      {count != null && (
-        <span className={`si-count ${alarm ? 'alarm' : ''}`}>{count}</span>
-      )}
-    </div>
+export function Sidebar({ route, setRoute, currentUser }) {
+  const store = useStore();
+  const role = currentUser.role;
+
+  const openCount = store.incidents.filter(i => i.status === 'OPEN' || i.status === 'IN_PROGRESS').length;
+  const criticOpen = store.incidents.filter(i => i.status === 'OPEN' && i.severity === 'CRITIC').length;
+  const unassigned = store.incidents.filter(i => i.triage_status === 'Unassigned' && (i.status === 'OPEN' || i.status === 'IN_PROGRESS')).length;
+  const myQueue = store.incidents.filter(i => i.assigned_person === currentUser.id && (i.status === 'OPEN' || i.status === 'IN_PROGRESS')).length;
+  const problemCount = store.problems.filter(p => p.status === 'open').length;
+
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+    { id: 'incidents', label: 'Incidents', icon: 'alert', badge: openCount > 0 ? openCount : null, badgeKind: criticOpen > 0 ? 'critic' : null },
+  ];
+  if (role === 'Incident Manager') {
+    items.push({ id: 'triage', label: 'Triage Queue', icon: 'triage', badge: unassigned, badgeKind: unassigned > 0 ? 'critic' : null });
+  }
+  if (role === 'Engineer') {
+    items.push({ id: 'my-queue', label: 'My Queue', icon: 'triage', badge: myQueue || null });
+  }
+  items.push(
+    { id: 'servers', label: 'Servers', icon: 'server' },
+    { id: 'metrics', label: 'Metrics', icon: 'metric' },
+    { id: 'problems', label: 'Problems', icon: 'problem', badge: problemCount || null, badgeKind: 'high' },
   );
-}
 
-export function Sidebar({ counts, currentPage, onNav }) {
-  // Items pentru secțiunea "Operations"
-  const operationsItems = [
-    { id: 'dash', label: 'Dashboard', icon: icons.dashboard },
-    { id: 'inc', label: 'Incidents', icon: icons.incidents, count: counts.open, alarm: counts.crit > 0 },
-    { id: 'prob', label: 'Problems', icon: icons.incidents },
-    { id: 'srv', label: 'Servers', icon: icons.servers, count: counts.servers },
-    { id: 'alm', label: 'Alarms', icon: icons.alarms, count: counts.alarms },
-  ];
-  
-  // Items pentru secțiunea "Workspace"
-  const workspaceItems = [
-    { id: 'team', label: 'Teams', icon: icons.teams },
-    { id: 'set', label: 'Settings', icon: icons.settings },
-  ];
-  
+  const operations = [];
+  if (role !== 'CEO' && role !== 'CTO') {
+    operations.push({ id: 'notifications', label: 'Notifications', icon: 'bell' });
+  } else {
+    operations.push({ id: 'notifications', label: 'Alerts I Receive', icon: 'bell' });
+  }
+  operations.push({ id: 'teams', label: 'Teams & On-Call', icon: 'team' });
+
   return (
     <aside className="sidebar">
-      <div className="sidebar-section">Operations</div>
-      {operationsItems.map(item => (
-        <SidebarItem
-          key={item.id}
-          {...item}
-          isActive={currentPage === item.id}
-          onClick={() => onNav(item.id)}
-        />
-      ))}
-      
-      <div className="sidebar-section">Workspace</div>
-      {workspaceItems.map(item => (
-        <SidebarItem
-          key={item.id}
-          {...item}
-          isActive={currentPage === item.id}
-          onClick={() => onNav(item.id)}
-        />
-      ))}
-      
+      <div className="brand">
+        <div className="brand-mark"></div>
+        <div className="brand-name">Watchdogs<span>__</span></div>
+      </div>
+
+      <div className="nav-section">Monitor</div>
+      <div className="nav-list">
+        {items.map(it => (
+          <button key={it.id} className={`nav-item ${route === it.id ? 'active' : ''}`} onClick={() => setRoute(it.id)}>
+            <span className="nav-icon"><Icon name={it.icon} /></span>
+            <span>{it.label}</span>
+            {it.badge && <span className={`nav-badge ${it.badgeKind || ''}`}>{it.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="nav-section">Operations</div>
+      <div className="nav-list">
+        {operations.map(it => (
+          <button key={it.id} className={`nav-item ${route === it.id ? 'active' : ''}`} onClick={() => setRoute(it.id)}>
+            <span className="nav-icon"><Icon name={it.icon} /></span>
+            <span>{it.label}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="sidebar-footer">
-        <div className="build"><span>build</span><span>v1.0.0</span></div>
-        <div className="build"><span>region</span><span>eu-west-1</span></div>
+        <div className="role-card">
+          <div className="role-card-row">
+            <Avatar name={currentUser.name} size={28} />
+            <div className="col" style={{gap:1}}>
+              <div className="role-name">{currentUser.name}</div>
+              <div className="role-title">{currentUser.role}</div>
+            </div>
+            {currentUser.on_call_status && (
+              <span className="pill pill-ok" style={{marginLeft:'auto'}}><span className="dot"></span>ON-CALL</span>
+            )}
+          </div>
+        </div>
       </div>
     </aside>
   );

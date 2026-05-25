@@ -1,190 +1,166 @@
-import { useEffect, useState } from 'react';
-import { Header } from './components/Header.jsx';
+/* Main app shell — routes between screens */
+
+import React, { useState } from 'react';
+import { useStore, WD, setCurrentUser, setBase, refresh } from './api.js';
+import { Icon, relTime } from './components/Common.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
-import { Heatmap } from './components/Heatmap.jsx';
-import { IncidentsList } from './components/IncidentsList.jsx';
-import { AlarmRail } from './components/AlarmRail.jsx';
-import { NotificationsList } from './components/NotificationsList.jsx';
-import { IncidentPanel } from './components/IncidentPanel.jsx';
-import { TeamsPage } from './components/TeamsPage.jsx';
-import { ProblemsPage } from './components/ProblemsPage.jsx';
-import { useApiData } from './hooks/useApiData.js';
-import { fetchAlarms, fetchIncidents, fetchInfrastructureHealth } from './services/api.js';
-import { useAuth } from './context/AuthContext.jsx';
+import { Topbar } from './components/Topbar.jsx';
+import { Modal } from './components/Modals.jsx';
+import { DashboardScreen } from './screens/Dashboard.jsx';
+import { IncidentsScreen } from './screens/Incidents.jsx';
+import { TriageScreen } from './screens/Triage.jsx';
+import { ServersScreen } from './screens/Servers.jsx';
+import { MetricsScreen } from './screens/Metrics.jsx';
+import { ProblemsScreen } from './screens/Problems.jsx';
+import { NotificationsScreen } from './screens/Notifications.jsx';
+import { TeamsScreen } from './screens/Teams.jsx';
 
-const PATH_TO_PAGE = {
-  '/': 'dash',
-  '/incidents': 'inc',
-  '/servers': 'srv',
-  '/alarms': 'alm',
-  '/teams': 'team',
-  '/problems': 'prob',
-  '/settings': 'set',
-};
+export default function App() {
+  const store = useStore();
+  const [route, setRoute] = useState('dashboard');
+  const [selectedIncidentId, setSelectedIncidentId] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
 
-const PAGE_TO_PATH = {
-  dash: '/',
-  inc: '/incidents',
-  srv: '/servers',
-  alm: '/alarms',
-  team: '/teams',
-  prob: '/problems',
-  set: '/settings',
-};
+  const currentUser = store.currentUser;
 
-export function App() {
-  const { currentUser } = useAuth();
-  const [page, setPage] = useState('dash');
-  const [selectedIncident, setSelectedIncident] = useState(null);
-  const [showAlarms, setShowAlarms] = useState(false);
+  const openIncident = (id) => { setRoute('incidents'); setSelectedIncidentId(id); };
+  const openServer = (id) => { setRoute('metrics'); window.__focusServer = id; };
 
-  useEffect(() => {
-    const syncRoute = () => {
-      const nextPage = PATH_TO_PAGE[window.location.pathname] || 'dash';
-      setPage(nextPage);
-    };
+  if (!currentUser) {
+    return (
+      <div className="app" style={{gridTemplateColumns: '1fr', gridTemplateAreas: '"topbar" "main"'}}>
+        <header className="topbar">
+          <div className="brand" style={{borderRight: 'none', padding: 0, gap: 10}}>
+            <div className="brand-mark"></div>
+            <div className="brand-name">Watchdogs<span>__</span></div>
+          </div>
+          <div className="topbar-spacer"></div>
+          <ConnectionPill connection={store.connection} base={store.base} onSettings={() => setShowSettings(true)} />
+        </header>
+        <main className="main center">
+          <div className="col gap-12" style={{maxWidth: 520, padding: 24, textAlign: 'center', alignItems: 'center'}}>
+            {store.connection.status === 'connecting' && (
+              <>
+                <div className="dim text-md">Connecting to backend…</div>
+                <div className="mono dim text-xs">{store.base}</div>
+              </>
+            )}
+            {store.connection.status === 'disconnected' && (
+              <>
+                <div style={{color: 'var(--critic)'}}><Icon name="alert" size={32} /></div>
+                <div className="text-lg fw-600">Backend unreachable</div>
+                <div className="dim text-sm">{store.connection.error}</div>
+                <div className="card" style={{background: 'var(--bg-elev)', padding: 14, textAlign: 'left', marginTop: 8}}>
+                  <div className="field-label" style={{marginBottom: 6}}>Start the backend</div>
+                  <div className="mono text-xs" style={{color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.7}}>
+                    <span style={{color: 'var(--text-3)'}}># 1. Database + broker</span>{'\n'}
+                    docker compose up -d{'\n\n'}
+                    <span style={{color: 'var(--text-3)'}}># 2. API</span>{'\n'}
+                    cd backend && uvicorn api:app --reload{'\n\n'}
+                    <span style={{color: 'var(--text-3)'}}># 3. (optional) Agent on this machine</span>{'\n'}
+                    cd agent && python agent.py
+                  </div>
+                </div>
+                <div className="row gap-8">
+                  <button className="btn btn-primary" onClick={() => refresh()}><Icon name="refresh" size={12} /> Retry</button>
+                  <button className="btn" onClick={() => setShowSettings(true)}><Icon name="settings" size={12} /> Change API URL</button>
+                </div>
+                <div className="dim text-xs mono">target: {store.base}</div>
+              </>
+            )}
+          </div>
+        </main>
+        {showSettings && <SettingsModal store={store} onClose={() => setShowSettings(false)} />}
+      </div>
+    );
+  }
 
-    syncRoute();
-    window.addEventListener('popstate', syncRoute);
-
-    return () => window.removeEventListener('popstate', syncRoute);
-  }, []);
-
-  useEffect(() => {
-    setSelectedIncident(null);
-    setShowAlarms(false);
-  }, [currentUser?.id]);
-
-  // Preluăm datele reale din API pentru contoarele din Sidebar/Header
-  const { data: alarms } = useApiData(() => fetchAlarms(), { refreshMs: 5000 });
-
-  const { data: incidents } = useApiData(() => fetchIncidents(), {
-    refreshMs: 5000,
-    enabled: !!currentUser,
-    deps: [currentUser?.id],
-  });
-
-  const { data: health } = useApiData(() => fetchInfrastructureHealth(), {
-    refreshMs: 5000,
-  });
-
-  const counts = {
-    open: incidents?.filter((i) => i.status === 'OPEN').length || 0,
-    crit: incidents?.filter((i) => i.severity === 'CRITIC').length || 0,
-    servers: health?.length || 0,
-    alarms: alarms?.length || 0,
-  };
-
-  const globalState = counts.crit > 0 ? 'err' : counts.open > 3 ? 'warn' : 'ok';
-
-  const handleNav = (newPage) => {
-    setShowAlarms(false);
-
-    if (selectedIncident) {
-      setSelectedIncident(null);
-    }
-
-    const path = PAGE_TO_PATH[newPage] || '/';
-
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
-    }
-
-    setPage(newPage);
-  };
-
-  const handleIncidentSelect = (incident) => {
-    setSelectedIncident(incident);
-
-    if (showAlarms) {
-      setShowAlarms(false);
-    }
-  };
-
-  const handleIncidentUpdate = (updatedIncident) => {
-    setSelectedIncident((prev) => {
-      if (!prev || prev.id !== updatedIncident?.id) return prev;
-      return { ...prev, ...updatedIncident };
-    });
-  };
+  let screen;
+  if (route === 'dashboard')      screen = <DashboardScreen currentUser={currentUser} openIncident={openIncident} setRoute={setRoute} />;
+  else if (route === 'incidents') screen = <IncidentsScreen currentUser={currentUser} selectedId={selectedIncidentId} setSelectedId={setSelectedIncidentId} />;
+  else if (route === 'triage')    screen = <TriageScreen currentUser={currentUser} openIncident={openIncident} />;
+  else if (route === 'my-queue')  screen = <IncidentsScreen currentUser={currentUser} selectedId={selectedIncidentId} setSelectedId={setSelectedIncidentId} myOnly={true} />;
+  else if (route === 'servers')   screen = <ServersScreen currentUser={currentUser} openServer={openServer} openIncident={openIncident} />;
+  else if (route === 'metrics')   screen = <MetricsScreen currentUser={currentUser} />;
+  else if (route === 'problems')  screen = <ProblemsScreen currentUser={currentUser} openIncident={openIncident} />;
+  else if (route === 'notifications') screen = <NotificationsScreen currentUser={currentUser} openIncident={openIncident} />;
+  else if (route === 'teams')     screen = <TeamsScreen currentUser={currentUser} />;
+  else screen = <div className="empty">Coming soon</div>;
 
   return (
     <div className="app">
-      <Header
-        globalState={globalState}
-        openCount={counts.open}
-        critCount={counts.crit}
-        onNav={handleNav}
-      />
-
-      <div className="body">
-        <Sidebar
-          counts={counts}
-          currentPage={page}
-          onNav={handleNav}
-        />
-
-        {page === 'dash' && (
-          <main className={`main ${selectedIncident || showAlarms ? 'has-panel' : ''}`}>
-            <div className="main-left">
-              <Heatmap />
-
-              <IncidentsList
-                onIncidentSelect={handleIncidentSelect}
-                selectedIncidentId={selectedIncident?.id}
-              />
-            </div>
-
-            {(selectedIncident || showAlarms) && (
-              <div className="main-right slide-in">
-                {selectedIncident ? (
-                  <IncidentPanel
-                    incident={selectedIncident}
-                    onClose={() => setSelectedIncident(null)}
-                    onUpdate={handleIncidentUpdate}
-                  />
-                ) : (
-                  <AlarmRail onClose={() => setShowAlarms(false)} />
-                )}
-              </div>
-            )}
-          </main>
+      <Sidebar route={route} setRoute={setRoute} currentUser={currentUser} />
+      <Topbar currentUser={currentUser} setCurrentUser={setCurrentUser} setRoute={setRoute} onSettings={() => setShowSettings(true)} />
+      <main className="main">
+        {store.connection.status === 'disconnected' && (
+          <div style={{background: 'var(--critic-bg)', borderBottom: '1px solid rgba(255,77,94,0.3)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12}}>
+            <Icon name="alert" size={14} />
+            <span style={{color: 'var(--critic)', fontWeight: 500}}>Backend disconnected.</span>
+            <span className="dim">{store.connection.error}</span>
+            <button className="btn btn-xs" style={{marginLeft: 'auto'}} onClick={() => refresh()}><Icon name="refresh" size={11} /> Retry</button>
+            <button className="btn btn-xs" onClick={() => setShowSettings(true)}><Icon name="settings" size={11} /> API URL</button>
+          </div>
         )}
-
-        {page === 'team' && (
-          <main className="main full">
-            <TeamsPage />
-          </main>
-        )}
-
-        {page === 'prob' && (
-          <main className="main full">
-            <ProblemsPage />
-          </main>
-        )}
-
-        {page === 'alm' && (
-          <main className="main full">
-            <div className="alarms-page-grid">
-              <AlarmRail />
-              <NotificationsList />
-            </div>
-          </main>
-        )}
-
-        {page !== 'dash' && page !== 'team' && page !== 'prob' && page !== 'alm' && (
-          <main className="main full">
-            <div style={{ padding: '24px' }}>
-              <h2 style={{ fontSize: '14px', marginBottom: '8px' }}>
-                Page: {page}
-              </h2>
-              <p style={{ color: 'var(--fg-3)', fontSize: '11px' }}>
-                În construcție. Pentru moment, dashboard-ul, Teams, Alarms și Problems afișează date.
-              </p>
-            </div>
-          </main>
-        )}
-      </div>
+        {screen}
+      </main>
+      {showSettings && <SettingsModal store={store} onClose={() => setShowSettings(false)} />}
     </div>
+  );
+}
+
+function ConnectionPill({ connection, base, onSettings }) {
+  let label = 'Connected', cls = 'pill-ok';
+  if (connection.status === 'connecting') { label = 'Connecting'; cls = 'pill-warn'; }
+  else if (connection.status === 'disconnected') { label = 'Disconnected'; cls = 'sev-critic'; }
+  return (
+    <button className={`pill ${cls}`} style={{cursor: 'pointer', padding: '4px 10px', border: 'none'}} onClick={onSettings} title={base}>
+      <span className="dot"></span>{label}
+    </button>
+  );
+}
+
+function SettingsModal({ store, onClose }) {
+  const [url, setUrl] = useState(store.base);
+  const save = () => { setBase(url); onClose(); };
+  return (
+    <Modal title="API connection settings" onClose={onClose} footer={<>
+      <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+      <button className="btn btn-primary" onClick={save}>Save & retry</button>
+    </>}>
+      <div className="col gap-12">
+        <div className="field">
+          <label className="field-label">API base URL</label>
+          <input className="input mono" value={url} onChange={e => setUrl(e.target.value)} placeholder="http://localhost:8000" />
+          <div className="dim text-xs" style={{marginTop: 4}}>FastAPI server URL. Must allow CORS from this origin.</div>
+        </div>
+        <div className="field">
+          <label className="field-label">Status</label>
+          <div className="card" style={{background: 'var(--bg-elev)', padding: 10}}>
+            <div className="row gap-8">
+              <span className={`pill ${store.connection.status === 'connected' ? 'pill-ok' : store.connection.status === 'connecting' ? 'pill-warn' : 'sev-critic'}`}>
+                <span className="dot"></span>{store.connection.status}
+              </span>
+              {store.connection.lastSuccess && (
+                <span className="dim text-xs">last success {relTime(new Date(store.connection.lastSuccess).toISOString())}</span>
+              )}
+            </div>
+            {store.connection.error && (
+              <div className="mono text-xs" style={{color: 'var(--critic)', marginTop: 8, wordBreak: 'break-all'}}>{store.connection.error}</div>
+            )}
+          </div>
+        </div>
+        <div className="field">
+          <label className="field-label">Cheat sheet</label>
+          <div className="mono text-xs" style={{padding: 12, background: 'var(--bg)', borderRadius: 6, color: 'var(--text-2)', lineHeight: 1.7, whiteSpace: 'pre-wrap'}}>
+            <span className="dim"># start db + broker</span>{'\n'}
+            docker compose up -d{'\n\n'}
+            <span className="dim"># start api</span>{'\n'}
+            cd backend && uvicorn api:app --reload --port 8000{'\n\n'}
+            <span className="dim"># start mqtt agent on a host</span>{'\n'}
+            cd agent && python agent.py
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
