@@ -1,7 +1,12 @@
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Depends, Header
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -27,28 +32,100 @@ DB_CONFIG = {
     "port": "5432"
 }
 
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 
-def get_mock_user(
-    x_mock_user_id: Optional[int] = Header(None, alias="X-Mock-User-Id"),
-):
-    """Returneaza userul mock pe baza header-ului X-Mock-User-Id."""
-    if x_mock_user_id is None:
-        raise HTTPException(status_code=401, detail="Missing X-Mock-User-Id header")
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def get_user_by_identity(identity: str) -> Optional[dict]:
     conn = get_db_connection()
     db_cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        db_cursor.execute("SELECT * FROM users WHERE id = %s", (x_mock_user_id,))
+        db_cursor.execute("SELECT * FROM users WHERE email = %s", (identity,))
         user = db_cursor.fetchone()
         if user is None:
-            raise HTTPException(status_code=404, detail="Mock user not found")
+            db_cursor.execute("SELECT * FROM users WHERE name = %s", (identity,))
+            user = db_cursor.fetchone()
         return user
     finally:
         db_cursor.close()
         conn.close()
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError as exc:
+        raise credentials_exception from exc
+
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = db_cursor.fetchone()
+        if user is None:
+            raise credentials_exception
+        return user
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_by_identity(form_data.username)
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    password_hash = user.get("password_hash")
+    if not password_hash or not verify_password(form_data.password, password_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        {
+            "sub": user.get("email"),
+            "user_id": user.get("id"),
+            "role": user.get("role"),
+        }
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/")
 def read_root():
@@ -60,7 +137,10 @@ def get_users():
     conn = get_db_connection()
     db_cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        db_cursor.execute("SELECT * FROM users ORDER BY team_name, role, name")
+        db_cursor.execute(
+            "SELECT id, name, email, team_name, role, on_call_status "
+            "FROM users ORDER BY team_name, role, name"
+        )
         return db_cursor.fetchall()
     finally:
         db_cursor.close()
@@ -130,7 +210,7 @@ def get_incidents(
     severity: Optional[str] = Query(None),
     team: Optional[str] =Query(None),
     server_id: Optional[str] = Query(None),
-    current_user: dict = Depends(get_mock_user),
+    current_user: dict = Depends(get_current_user),
 ):
     conditions = []
     params = []
@@ -216,7 +296,7 @@ ALLOWED_TRIAGE_STATUSES = {"Unassigned", "Assigned"}
 def update_incident(
     incident_id: int,
     body: IncidentUpdate,
-    current_user: dict = Depends(get_mock_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Actualizeaza echipa, inginerul atribuit sau statusul unui incident."""
     updates = body.model_dump(exclude_none=True)
@@ -333,7 +413,7 @@ def update_incident(
 @app.post("/api/incidents/{incident_id}/bridge")
 def start_bridge_call(
     incident_id: int,
-    current_user: dict = Depends(get_mock_user),
+    current_user: dict = Depends(get_current_user),
 ):
     role = current_user.get("role")
     if role != "Incident Manager":
@@ -578,7 +658,7 @@ def get_notification_targets(incident_id: int):
 def send_notifications(
     incident_id: int,
     triggered_by: Optional[int] = None,
-    current_user: dict = Depends(get_mock_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Execută trimiterea (simulată) pentru un incident.
     triggered_by se ia automat din user-ul curent dacă nu e furnizat."""
@@ -609,7 +689,7 @@ def get_notification_log(
     incident_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
     limit: int = Query(50, ge=1, le=500),
-    current_user: dict = Depends(get_mock_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """Istoric notificări cu filtre parametrizate."""
     conn = get_db_connection()

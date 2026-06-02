@@ -14,7 +14,7 @@ function subscribe(fn) { SUBS.add(fn); return () => SUBS.delete(fn); }
 function notify() { SUBS.forEach(fn => fn()); }
 
 const LS_BASE = 'watchdogs.api.base';
-const LS_USER = 'watchdogs.api.userId';
+const LS_TOKEN = 'watchdogs.auth.token';
 
 export const WD = {
   // === cached state ===
@@ -31,7 +31,8 @@ export const WD = {
   notificationTargetsCache: {},
   health: [],
 
-  // === current impersonated user ===
+  // === auth ===
+  token: localStorage.getItem(LS_TOKEN),
   currentUser: null,
 
   // === connection ===
@@ -43,10 +44,49 @@ export const WD = {
   subscribe,
 };
 
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function clearAuth() {
+  WD.token = null;
+  WD.currentUser = null;
+  WD.incidents = [];
+  WD.notificationLog = [];
+  localStorage.removeItem(LS_TOKEN);
+  notify();
+}
+
+function setToken(token) {
+  WD.token = token;
+  if (token) localStorage.setItem(LS_TOKEN, token);
+  else localStorage.removeItem(LS_TOKEN);
+}
+
+function resolveCurrentUserFromToken() {
+  if (!WD.token || WD.users.length === 0) return;
+  const payload = decodeJwtPayload(WD.token);
+  const userId = payload?.user_id;
+  if (!userId) return;
+  const next = WD.users.find(u => u.id === userId) || null;
+  if (next && WD.currentUser?.id !== next.id) WD.currentUser = next;
+}
+
 async function apiFetch(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  if (WD.currentUser) headers['X-Mock-User-Id'] = String(WD.currentUser.id);
+  if (WD.token) headers.Authorization = `Bearer ${WD.token}`;
   const res = await fetch(WD.base + path, { ...opts, headers, mode: 'cors' });
+  if (res.status === 401) {
+    clearAuth();
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`${res.status} ${path}: ${body.slice(0, 200)}`);
@@ -55,6 +95,7 @@ async function apiFetch(path, opts = {}) {
 }
 
 export async function refresh() {
+  const authed = Boolean(WD.token);
   const realCalls = {
     users:         apiFetch('/api/users'),
     teams:         apiFetch('/api/teams'),
@@ -66,8 +107,8 @@ export async function refresh() {
     metrics:       apiFetch('/api/metrics?minutes=10&limit=1000'),
   };
   const userScoped = {
-    incidents:     WD.currentUser ? apiFetch('/api/incidents') : null,
-    notifLog:      WD.currentUser ? apiFetch('/api/notifications/log?limit=200') : null,
+    incidents:     authed ? apiFetch('/api/incidents') : null,
+    notifLog:      authed ? apiFetch('/api/notifications/log?limit=200') : null,
   };
 
   const realKeys = Object.keys(realCalls);
@@ -146,15 +187,7 @@ export async function refresh() {
     WD.metricsHistory = byServer;
   }
 
-  if (!WD.currentUser && WD.users.length > 0) {
-    const savedId = Number(localStorage.getItem(LS_USER));
-    const found = savedId ? WD.users.find(x => x.id === savedId) : null;
-    WD.currentUser = found || WD.users.find(x => x.role === 'Incident Manager') || WD.users[0];
-    Promise.allSettled([
-      apiFetch('/api/incidents').then(d => { WD.incidents = d; }),
-      apiFetch('/api/notifications/log?limit=200').then(d => { WD.notificationLog = d; }),
-    ]).then(notify).catch(() => {});
-  }
+  if (authed) resolveCurrentUserFromToken();
 
   notify();
 }
@@ -186,10 +219,10 @@ export async function fetchProblemTimeline(problemId) {
 }
 
 export async function patchIncident(id, patch) {
-  if (!WD.currentUser) throw new Error('No current user');
+  if (!WD.token) throw new Error('Not authenticated');
   const res = await fetch(WD.base + `/api/incidents/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-Mock-User-Id': String(WD.currentUser.id) },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
     body: JSON.stringify(patch),
     mode: 'cors',
   });
@@ -202,10 +235,10 @@ export async function patchIncident(id, patch) {
 }
 
 export async function startBridge(id) {
-  if (!WD.currentUser) throw new Error('No current user');
+  if (!WD.token) throw new Error('Not authenticated');
   const res = await fetch(WD.base + `/api/incidents/${id}/bridge`, {
     method: 'POST',
-    headers: { 'X-Mock-User-Id': String(WD.currentUser.id) },
+    headers: { Authorization: `Bearer ${WD.token}` },
     mode: 'cors',
   });
   if (!res.ok) {
@@ -217,10 +250,10 @@ export async function startBridge(id) {
 }
 
 export async function dispatchNotifications(incidentId) {
-  if (!WD.currentUser) throw new Error('No current user');
+  if (!WD.token) throw new Error('Not authenticated');
   const res = await fetch(WD.base + `/api/notifications/send/${incidentId}`, {
     method: 'POST',
-    headers: { 'X-Mock-User-Id': String(WD.currentUser.id) },
+    headers: { Authorization: `Bearer ${WD.token}` },
     mode: 'cors',
   });
   const data = await res.json();
@@ -245,10 +278,30 @@ export function setBase(url) {
   refresh();
 }
 
-export function setCurrentUser(u) {
-  WD.currentUser = u;
-  if (u) localStorage.setItem(LS_USER, String(u.id));
-  notify();
+export async function login(email, password) {
+  const body = new URLSearchParams();
+  body.set('username', email);
+  body.set('password', password);
+  const res = await fetch(WD.base + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    const message = data?.detail || data?.message || 'Login failed';
+    throw new Error(message);
+  }
+  const data = await res.json();
+  if (!data?.access_token) throw new Error('Login failed: missing token');
+  setToken(data.access_token);
+  await refresh();
+  return data;
+}
+
+export function logout() {
+  clearAuth();
   refresh();
 }
 

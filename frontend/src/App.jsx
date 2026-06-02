@@ -1,11 +1,12 @@
 /* Main app shell — routes between screens */
 
 import React, { useState } from 'react';
-import { useStore, WD, setCurrentUser, setBase, refresh } from './api.js';
+import { useStore, setBase, refresh, logout } from './api.js';
 import { Icon, relTime } from './components/Common.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { Topbar } from './components/Topbar.jsx';
 import { Modal } from './components/Modals.jsx';
+import { LoginScreen } from './screens/Login.jsx';
 import { DashboardScreen } from './screens/Dashboard.jsx';
 import { IncidentsScreen } from './screens/Incidents.jsx';
 import { TriageScreen } from './screens/Triage.jsx';
@@ -22,9 +23,19 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
 
   const currentUser = store.currentUser;
+  const isAuthenticated = Boolean(store.token);
 
   const openIncident = (id) => { setRoute('incidents'); setSelectedIncidentId(id); };
   const openServer = (id) => { setRoute('metrics'); window.__focusServer = id; };
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <LoginScreen onSettings={() => setShowSettings(true)} onRetry={refresh} />
+        {showSettings && <SettingsModal store={store} onClose={() => setShowSettings(false)} />}
+      </>
+    );
+  }
 
   if (!currentUser) {
     return (
@@ -39,35 +50,8 @@ export default function App() {
         </header>
         <main className="main center">
           <div className="col gap-12" style={{maxWidth: 520, padding: 24, textAlign: 'center', alignItems: 'center'}}>
-            {store.connection.status === 'connecting' && (
-              <>
-                <div className="dim text-md">Connecting to backend…</div>
-                <div className="mono dim text-xs">{store.base}</div>
-              </>
-            )}
-            {store.connection.status === 'disconnected' && (
-              <>
-                <div style={{color: 'var(--critic)'}}><Icon name="alert" size={32} /></div>
-                <div className="text-lg fw-600">Backend unreachable</div>
-                <div className="dim text-sm">{store.connection.error}</div>
-                <div className="card" style={{background: 'var(--bg-elev)', padding: 14, textAlign: 'left', marginTop: 8}}>
-                  <div className="field-label" style={{marginBottom: 6}}>Start the backend</div>
-                  <div className="mono text-xs" style={{color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.7}}>
-                    <span style={{color: 'var(--text-3)'}}># 1. Database + broker</span>{'\n'}
-                    docker compose up -d{'\n\n'}
-                    <span style={{color: 'var(--text-3)'}}># 2. API</span>{'\n'}
-                    cd backend && uvicorn api:app --reload{'\n\n'}
-                    <span style={{color: 'var(--text-3)'}}># 3. (optional) Agent on this machine</span>{'\n'}
-                    cd agent && python agent.py
-                  </div>
-                </div>
-                <div className="row gap-8">
-                  <button className="btn btn-primary" onClick={() => refresh()}><Icon name="refresh" size={12} /> Retry</button>
-                  <button className="btn" onClick={() => setShowSettings(true)}><Icon name="settings" size={12} /> Change API URL</button>
-                </div>
-                <div className="dim text-xs mono">target: {store.base}</div>
-              </>
-            )}
+            <div className="dim text-md">Loading profile…</div>
+            <div className="mono dim text-xs">{store.base}</div>
           </div>
         </main>
         {showSettings && <SettingsModal store={store} onClose={() => setShowSettings(false)} />}
@@ -90,7 +74,7 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar route={route} setRoute={setRoute} currentUser={currentUser} />
-      <Topbar currentUser={currentUser} setCurrentUser={setCurrentUser} setRoute={setRoute} onSettings={() => setShowSettings(true)} />
+      <Topbar currentUser={currentUser} onLogout={logout} setRoute={setRoute} onSettings={() => setShowSettings(true)} />
       <main className="main">
         {store.connection.status === 'disconnected' && (
           <div style={{background: 'var(--critic-bg)', borderBottom: '1px solid rgba(255,77,94,0.3)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12}}>

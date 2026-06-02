@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useStore, useNow } from '../api.js';
 import { Avatar, Icon, timeOnly, relTime } from './Common.jsx';
 
-export function Topbar({ currentUser, setCurrentUser, setRoute, onSettings }) {
+export function Topbar({ currentUser, onLogout, setRoute, onSettings }) {
   const store = useStore();
   useNow(1000);
-  const [openSwitch, setOpenSwitch] = useState(false);
   const [openNotif, setOpenNotif] = useState(false);
 
   const openIncidents = store.incidents.filter(i => i.status === 'OPEN' || i.status === 'IN_PROGRESS').length;
@@ -14,17 +13,6 @@ export function Topbar({ currentUser, setCurrentUser, setRoute, onSettings }) {
   const totalServers = store.servers.length;
   const myNotifs = store.notificationLog.filter(n => n.user_id === currentUser.id).slice(0, 5);
   const unreadNotifs = myNotifs.length;
-
-  const groupedUsers = useMemo(() => {
-    const groups = {};
-    store.users.forEach(u => {
-      if (!groups[u.role]) groups[u.role] = [];
-      groups[u.role].push(u);
-    });
-    return groups;
-  }, [store.users]);
-
-  const roleOrder = ['CEO', 'CTO', 'Incident Manager', 'System Manager', 'Engineer'];
 
   const conn = store.connection;
   const connClass = conn.status === 'connected' ? 'pill-ok' : conn.status === 'connecting' ? 'pill-warn' : 'sev-critic';
@@ -68,34 +56,16 @@ export function Topbar({ currentUser, setCurrentUser, setRoute, onSettings }) {
         <Icon name="settings" size={18} />
       </button>
 
-      <div className="role-switcher" onClick={() => setOpenSwitch(o => !o)}>
+      <div className="role-switcher" style={{gap: 10}}>
         <Avatar name={currentUser.name} size={22} />
-        <span className="name">{currentUser.name}</span>
-        <span className="dim text-xs">·</span>
-        <span className="dim text-xs">{currentUser.role}</span>
-        <span className="chev"><Icon name="chev" size={14} /></span>
-      </div>
-
-      {openSwitch && (
-        <div className="dropdown" onClick={(e) => e.stopPropagation()} style={{right: 16, top: 46, minWidth: 280}}>
-          <div className="dropdown-section-title">Impersonate user · Role-aware view</div>
-          {roleOrder.map(role => groupedUsers[role] && (
-            <div key={role}>
-              <div className="dropdown-section-title" style={{paddingTop: 6}}>{role}</div>
-              {groupedUsers[role].map(u => (
-                <div key={u.id} className={`dropdown-item ${currentUser.id === u.id ? 'selected' : ''}`} onClick={() => { setCurrentUser(u); setOpenSwitch(false); }}>
-                  <Avatar name={u.name} size={26} />
-                  <div className="col" style={{gap: 1}}>
-                    <div style={{fontSize: 12.5, fontWeight: 500}}>{u.name}</div>
-                    <div className="meta">{u.team_name}{u.on_call_status ? ' · on-call' : ''}</div>
-                  </div>
-                  {currentUser.id === u.id && <span className="check"><Icon name="check" size={14} /></span>}
-                </div>
-              ))}
-            </div>
-          ))}
+        <div className="col" style={{gap: 2}}>
+          <span className="name">{currentUser.name}</span>
+          <span className="dim text-xs">{currentUser.role}</span>
         </div>
-      )}
+        <button className="icon-btn" onClick={onLogout} title="Log out">
+          <Icon name="logout" size={16} />
+        </button>
+      </div>
 
       {openNotif && (
         <div className="dropdown" onClick={(e) => e.stopPropagation()} style={{right: 90, top: 46, minWidth: 360}}>

@@ -41,26 +41,29 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(120) NOT NULL UNIQUE,
     team_name VARCHAR(50) NOT NULL,
     role VARCHAR(50) NOT NULL,
-    on_call_status BOOLEAN NOT NULL DEFAULT FALSE
+    on_call_status BOOLEAN NOT NULL DEFAULT FALSE,
+    password_hash TEXT
 );
 
 -- Coloane noi pentru DB-uri existente (idempotent)
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS team_name VARCHAR(50);
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS role VARCHAR(50);
 ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS on_call_status BOOLEAN DEFAULT FALSE;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
 -- Seed data pentru demo impersonation
-INSERT INTO users (name, email, team_name, role, on_call_status)
+INSERT INTO users (name, email, team_name, role, on_call_status, password_hash)
 VALUES
-    ('Elena', 'elena@watchdogs.local', 'Executive', 'CEO', FALSE),
-    ('Maria', 'maria@watchdogs.local', 'Infrastructure', 'System Manager', TRUE),
-    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE),
-    ('Alex',  'alex@watchdogs.local', 'NOC', 'Incident Manager', FALSE)
+    ('Elena', 'elena@watchdogs.local', 'Executive', 'CEO', FALSE, '$2b$12$GNF7rTQ5SCJ4FoGU41i86u/ggRDsrB0gg3vz7iQjClIHwckJmO1gG'),
+    ('Maria', 'maria@watchdogs.local', 'Infrastructure', 'System Manager', TRUE, '$2b$12$GNF7rTQ5SCJ4FoGU41i86u/ggRDsrB0gg3vz7iQjClIHwckJmO1gG'),
+    ('Paul',  'paul@watchdogs.local', 'Infrastructure', 'Engineer', FALSE, '$2b$12$GNF7rTQ5SCJ4FoGU41i86u/ggRDsrB0gg3vz7iQjClIHwckJmO1gG'),
+    ('Alex',  'alex@watchdogs.local', 'NOC', 'Incident Manager', FALSE, '$2b$12$GNF7rTQ5SCJ4FoGU41i86u/ggRDsrB0gg3vz7iQjClIHwckJmO1gG')
 ON CONFLICT (email) DO UPDATE SET
     name = EXCLUDED.name,
     team_name = EXCLUDED.team_name,
     role = EXCLUDED.role,
-    on_call_status = EXCLUDED.on_call_status;
+    on_call_status = EXCLUDED.on_call_status,
+    password_hash = EXCLUDED.password_hash;
 
 
 -- 3. Alarme = zgomot automat declansat de motor (un eveniment per detectie)
