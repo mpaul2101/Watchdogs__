@@ -30,7 +30,6 @@ export const WD = {
   metricsHistory: {},
   notificationTargetsCache: {},
   health: [],
-  bridgeParticipants: {},
 
   // === auth ===
   token: localStorage.getItem(LS_TOKEN),
@@ -247,49 +246,6 @@ export async function startBridge(id) {
     throw new Error(`${res.status}: ${body}`);
   }
   await refresh();
-  return res.json();
-}
-
-export async function endBridge(id) {
-  if (!WD.token) throw new Error('Not authenticated');
-  const res = await fetch(WD.base + `/api/incidents/${id}/bridge/stop`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${WD.token}` },
-    mode: 'cors',
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`${res.status}: ${body}`);
-  }
-  await refresh();
-  return res.json();
-}
-
-export async function fetchBridgeParticipants(id) {
-  if (!WD.token) return [];
-  try {
-    const list = await apiFetch(`/api/incidents/${id}/bridge/participants`);
-    WD.bridgeParticipants = { ...WD.bridgeParticipants, [id]: list };
-    notify();
-    return list;
-  } catch (e) {
-    return WD.bridgeParticipants[id] || [];
-  }
-}
-
-export async function setMyBridgeState(id, state) {
-  if (!WD.token) throw new Error('Not authenticated');
-  const res = await fetch(WD.base + `/api/incidents/${id}/bridge/participants/me`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
-    body: JSON.stringify(state),
-    mode: 'cors',
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`${res.status}: ${body}`);
-  }
-  await fetchBridgeParticipants(id);
   return res.json();
 }
 
