@@ -35,6 +35,9 @@ export function Sidebar({ route, setRoute, currentUser }) {
     operations.push({ id: 'notifications', label: 'Alerts I Receive', icon: 'bell' });
   }
   operations.push({ id: 'teams', label: 'Teams & On-Call', icon: 'team' });
+  if (role === 'CEO') {
+    operations.push({ id: 'users', label: 'User management', icon: 'users' });
+  }
 
   return (
     <aside className="sidebar">

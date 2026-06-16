@@ -30,6 +30,7 @@ export const WD = {
   metricsHistory: {},
   notificationTargetsCache: {},
   health: [],
+  bridgeParticipants: {},
 
   // === auth ===
   token: localStorage.getItem(LS_TOKEN),
@@ -77,7 +78,7 @@ function resolveCurrentUserFromToken() {
   const userId = payload?.user_id;
   if (!userId) return;
   const next = WD.users.find(u => u.id === userId) || null;
-  if (next && WD.currentUser?.id !== next.id) WD.currentUser = next;
+  if (next) WD.currentUser = next;
 }
 
 async function apiFetch(path, opts = {}) {
@@ -249,6 +250,66 @@ export async function startBridge(id) {
   return res.json();
 }
 
+export async function endBridge(id) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/incidents/${id}/bridge/stop`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${WD.token}` },
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status}: ${body}`);
+  }
+  await refresh();
+  return res.json();
+}
+
+export async function fetchBridgeParticipants(id) {
+  if (!WD.token) return [];
+  try {
+    const list = await apiFetch(`/api/incidents/${id}/bridge/participants`);
+    WD.bridgeParticipants = { ...WD.bridgeParticipants, [id]: list };
+    notify();
+    return list;
+  } catch (e) {
+    return WD.bridgeParticipants[id] || [];
+  }
+}
+
+export async function setMyBridgeState(id, state) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/incidents/${id}/bridge/participants/me`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify(state),
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status}: ${body}`);
+  }
+  await fetchBridgeParticipants(id);
+  return res.json();
+}
+
+export async function createUser(payload) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + '/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify(payload),
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail || data?.message || `${res.status} create failed`);
+  }
+  const created = await res.json();
+  await refresh();
+  return created;
+}
+
 export async function dispatchNotifications(incidentId) {
   if (!WD.token) throw new Error('Not authenticated');
   const res = await fetch(WD.base + `/api/notifications/send/${incidentId}`, {
@@ -261,9 +322,20 @@ export async function dispatchNotifications(incidentId) {
   return data.sent_count || 0;
 }
 
-export function toggleOnCall() {
-  WD.connection.lastWarning = 'No backend endpoint for on_call toggle — add POST /api/users/{id}/on-call';
-  notify();
+export async function toggleOnCall(userId, next) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/users/${userId}/on-call`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify({ on_call_status: next }),
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail || `${res.status} on-call toggle failed`);
+  }
+  await refresh();
+  return res.json();
 }
 export function listMembership() {
   WD.connection.lastWarning = 'No backend endpoint for list membership.';

@@ -47,6 +47,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+def hash_password(plain_password: str) -> str:
+    return pwd_context.hash(plain_password)
+
+
+# Roluri si echipe permise la crearea conturilor (doar de catre CEO)
+ALLOWED_ROLES = {"CEO", "CTO", "Incident Manager", "System Manager", "Engineer"}
+KNOWN_TEAMS = {
+    "Infrastructure", "Backend", "Database", "Security", "Executive", "NOC",
+}
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -142,6 +153,104 @@ def get_users():
             "FROM users ORDER BY team_name, role, name"
         )
         return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+class CreateUserBody(BaseModel):
+    """Body pentru crearea unui cont nou. Doar CEO poate apela acest endpoint."""
+    name: str
+    email: str
+    password: str
+    team_name: str
+    role: str
+    on_call_status: bool = False
+
+
+class OnCallBody(BaseModel):
+    on_call_status: bool
+
+
+@app.post("/api/users/{user_id}/on-call")
+def set_on_call(
+    user_id: int,
+    body: OnCallBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """Toggle on-call. Fiecare user isi schimba DOAR propriul status."""
+    if current_user.get("id") != user_id:
+        raise HTTPException(status_code=403, detail="You can only change your own on-call status")
+
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute(
+            """
+            UPDATE users SET on_call_status = %s
+            WHERE id = %s
+            RETURNING id, name, email, team_name, role, on_call_status
+            """,
+            (body.on_call_status, user_id),
+        )
+        row = db_cursor.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        conn.commit()
+        return row
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.post("/api/users", status_code=201)
+def create_user(
+    body: CreateUserBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """Creare cont nou. Rezervat exclusiv CEO-ului (fara register public).
+    Parola este salvata hash-uit (bcrypt), niciodata in clar."""
+    if current_user.get("role") != "CEO":
+        raise HTTPException(status_code=403, detail="Only the CEO can create accounts")
+
+    name = (body.name or "").strip()
+    email = (body.email or "").strip().lower()
+    team_name = (body.team_name or "").strip()
+    role = (body.role or "").strip()
+    password = body.password or ""
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if "@" not in email or len(email) < 3:
+        raise HTTPException(status_code=400, detail="A valid email is required")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if not team_name:
+        raise HTTPException(status_code=400, detail="Team is required")
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role. Allowed: {sorted(ALLOWED_ROLES)}",
+        )
+
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+        if db_cursor.fetchone() is not None:
+            raise HTTPException(status_code=409, detail="A user with this email already exists")
+
+        db_cursor.execute(
+            """
+            INSERT INTO users (name, email, team_name, role, on_call_status, password_hash)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, name, email, team_name, role, on_call_status
+            """,
+            (name, email, team_name, role, body.on_call_status, hash_password(password)),
+        )
+        row = db_cursor.fetchone()
+        conn.commit()
+        return row
     finally:
         db_cursor.close()
         conn.close()
@@ -437,6 +546,141 @@ def start_bridge_call(
             RETURNING *
             """,
             (bridge_url, incident_id),
+        )
+        row = db_cursor.fetchone()
+
+        # Incident Manager-ul care porneste bridge-ul intra automat in call
+        db_cursor.execute(
+            """
+            INSERT INTO bridge_participants (incident_id, user_id, joined, muted, available)
+            VALUES (%s, %s, TRUE, FALSE, TRUE)
+            ON CONFLICT (incident_id, user_id) DO UPDATE
+            SET joined = TRUE, updated_at = CURRENT_TIMESTAMP
+            """,
+            (incident_id, current_user.get("id")),
+        )
+        conn.commit()
+        return row
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.post("/api/incidents/{incident_id}/bridge/stop")
+def stop_bridge_call(
+    incident_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Opreste bridge-ul. Doar Incident Manager. Participantii sunt scosi din call."""
+    if current_user.get("role") != "Incident Manager":
+        raise HTTPException(status_code=403, detail="Only Incident Manager can stop a bridge")
+
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute("SELECT id FROM incidents WHERE id = %s", (incident_id,))
+        if db_cursor.fetchone() is None:
+            raise HTTPException(status_code=404, detail=f"Incident #{incident_id} negasit")
+
+        db_cursor.execute(
+            """
+            UPDATE incidents
+            SET bridge_status = 'Ended', updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *
+            """,
+            (incident_id,),
+        )
+        row = db_cursor.fetchone()
+        db_cursor.execute(
+            "UPDATE bridge_participants SET joined = FALSE, updated_at = CURRENT_TIMESTAMP WHERE incident_id = %s",
+            (incident_id,),
+        )
+        conn.commit()
+        return row
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+@app.get("/api/incidents/{incident_id}/bridge/participants")
+def get_bridge_participants(
+    incident_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Lista participantilor la bridge cu starea fiecaruia (joined/muted/available)."""
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute(
+            """
+            SELECT
+                bp.user_id, bp.joined, bp.muted, bp.available, bp.updated_at,
+                u.name, u.role, u.team_name
+            FROM bridge_participants bp
+            JOIN users u ON u.id = bp.user_id
+            WHERE bp.incident_id = %s
+            ORDER BY bp.joined DESC, u.name
+            """,
+            (incident_id,),
+        )
+        return db_cursor.fetchall()
+    finally:
+        db_cursor.close()
+        conn.close()
+
+
+class BridgeParticipantState(BaseModel):
+    """Stare proprie in bridge. Toate campurile optionale - se schimba doar cele trimise."""
+    joined: Optional[bool] = None
+    muted: Optional[bool] = None
+    available: Optional[bool] = None
+
+
+@app.post("/api/incidents/{incident_id}/bridge/participants/me")
+def update_my_bridge_state(
+    incident_id: int,
+    body: BridgeParticipantState,
+    current_user: dict = Depends(get_current_user),
+):
+    """Fiecare user isi modifica DOAR propria stare (join/leave, mute, available).
+    Endpoint-ul foloseste mereu id-ul user-ului curent -> nu poti schimba pe altcineva."""
+    user_id = current_user.get("id")
+
+    conn = get_db_connection()
+    db_cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        db_cursor.execute(
+            "SELECT bridge_status FROM incidents WHERE id = %s", (incident_id,)
+        )
+        inc = db_cursor.fetchone()
+        if inc is None:
+            raise HTTPException(status_code=404, detail=f"Incident #{incident_id} negasit")
+        if inc.get("bridge_status") != "Active":
+            raise HTTPException(status_code=400, detail="Bridge is not active")
+
+        db_cursor.execute(
+            "SELECT joined, muted, available FROM bridge_participants WHERE incident_id = %s AND user_id = %s",
+            (incident_id, user_id),
+        )
+        existing = db_cursor.fetchone()
+
+        joined = body.joined if body.joined is not None else (existing["joined"] if existing else True)
+        muted = body.muted if body.muted is not None else (existing["muted"] if existing else False)
+        available = body.available if body.available is not None else (existing["available"] if existing else True)
+
+        db_cursor.execute(
+            """
+            INSERT INTO bridge_participants (incident_id, user_id, joined, muted, available)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (incident_id, user_id) DO UPDATE
+            SET joined = EXCLUDED.joined,
+                muted = EXCLUDED.muted,
+                available = EXCLUDED.available,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING user_id, joined, muted, available
+            """,
+            (incident_id, user_id, joined, muted, available),
         )
         row = db_cursor.fetchone()
         conn.commit()

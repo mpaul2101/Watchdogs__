@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore, useNow, WD, startBridge } from '../api.js';
 import { SeverityPill, StatusPill, Avatar, Icon, Empty, LiveChart, relTime, dateShort } from '../components/Common.jsx';
 import { ReassignModal, NotifyModal, StatusModal } from '../components/Modals.jsx';
+import { BridgePanel } from '../components/BridgePanel.jsx';
 
 export function IncidentsScreen({ currentUser, selectedId, setSelectedId, myOnly }) {
   const store = useStore();
@@ -201,6 +202,8 @@ function IncidentDetail({ incident, currentUser, onAssign, onNotify, onStatus })
             <dt>Updated</dt><dd className="mono text-xs">{dateShort(incident.updated_at)}</dd>
           </dl>
         </div>
+
+        <BridgePanel incident={incident} currentUser={currentUser} />
 
         <div className="inc-detail-section">
           <div className="inc-detail-section-title">Timeline · {events.length} events</div>

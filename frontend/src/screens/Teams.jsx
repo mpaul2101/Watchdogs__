@@ -1,5 +1,5 @@
 import React from 'react';
-import { useStore, useNow } from '../api.js';
+import { useStore, useNow, toggleOnCall } from '../api.js';
 import { SeverityPill, Avatar, Icon } from '../components/Common.jsx';
 
 export function TeamsScreen({ currentUser }) {
@@ -29,7 +29,7 @@ export function TeamsScreen({ currentUser }) {
         <div className="page-title">Teams &amp; on-call</div>
         <div className="page-subtitle">{store.users.length} users across {Object.keys(teamGroups).length} teams · {store.users.filter(u => u.on_call_status).length} on-call right now</div>
         <div className="page-actions">
-          <span className="dim text-xs">on-call toggle requires backend endpoint</span>
+          <span className="dim text-xs">click your own badge to toggle on-call</span>
         </div>
       </div>
 
@@ -67,14 +67,20 @@ export function TeamsScreen({ currentUser }) {
                       <span className="name">{m.name}</span>
                       {currentUser.id === m.id && <span className="dim text-xs">(you)</span>}
                       <span className="role-tag">{m.role}</span>
-                      <button
-                        className={`pill ${m.on_call_status ? 'pill-ok' : 'pill-neutral'}`}
-                        style={{padding: '1px 8px', fontSize: 10, marginLeft: 8, border: 'none', cursor: 'default', opacity: 0.85}}
-                        disabled
-                        title="No backend endpoint yet to toggle on-call status — add POST /api/users/{id}/on-call"
-                      >
-                        <span className="dot"></span>{m.on_call_status ? 'ON-CALL' : 'OFF'}
-                      </button>
+                      {(() => {
+                        const isMe = currentUser.id === m.id;
+                        return (
+                          <button
+                            className={`pill ${m.on_call_status ? 'pill-ok' : 'pill-neutral'}`}
+                            style={{padding: '1px 8px', fontSize: 10, marginLeft: 8, border: 'none', cursor: isMe ? 'pointer' : 'default', opacity: isMe ? 1 : 0.7}}
+                            disabled={!isMe}
+                            onClick={isMe ? () => toggleOnCall(m.id, !m.on_call_status).catch(e => alert(e.message)) : undefined}
+                            title={isMe ? 'Click to toggle your on-call status' : 'You can only change your own on-call status'}
+                          >
+                            <span className="dot"></span>{m.on_call_status ? 'ON-CALL' : 'OFF'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

@@ -15,6 +15,7 @@ import { MetricsScreen } from './screens/Metrics.jsx';
 import { ProblemsScreen } from './screens/Problems.jsx';
 import { NotificationsScreen } from './screens/Notifications.jsx';
 import { TeamsScreen } from './screens/Teams.jsx';
+import { UsersScreen } from './screens/Users.jsx';
 
 export default function App() {
   const store = useStore();
@@ -69,6 +70,7 @@ export default function App() {
   else if (route === 'problems')  screen = <ProblemsScreen currentUser={currentUser} openIncident={openIncident} />;
   else if (route === 'notifications') screen = <NotificationsScreen currentUser={currentUser} openIncident={openIncident} />;
   else if (route === 'teams')     screen = <TeamsScreen currentUser={currentUser} />;
+  else if (route === 'users')      screen = <UsersScreen currentUser={currentUser} />;
   else screen = <div className="empty">Coming soon</div>;
 
   return (

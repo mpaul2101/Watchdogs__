@@ -401,6 +401,18 @@ ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_required BOOLEAN DEFAULT F
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_status VARCHAR(20) DEFAULT 'Not Started';
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS bridge_url TEXT;
 
+-- Participanti la bridge call (simulat in dashboard). O linie per (incident, user).
+-- Fiecare user isi controleaza doar propria stare; ceilalti ii vad doar statusul.
+CREATE TABLE IF NOT EXISTS bridge_participants (
+    incident_id INT REFERENCES incidents(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    joined BOOLEAN NOT NULL DEFAULT FALSE,
+    muted BOOLEAN NOT NULL DEFAULT FALSE,
+    available BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (incident_id, user_id)
+);
+
 -- Cautare rapida pentru deduplicare: "exista deja un OPEN pentru asta?"
 CREATE INDEX IF NOT EXISTS idx_incidents_open_lookup
     ON incidents (server_id, metric_type, status);
