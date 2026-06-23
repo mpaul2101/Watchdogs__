@@ -14,14 +14,9 @@ export function ProblemsScreen({ currentUser, openIncident }) {
   filtered = [...filtered].sort((a, b) => b.occurrence_count - a.occurrence_count);
 
   const effectiveSelected = selectedId || filtered[0]?.id;
-  const selected = filtered.find(p => p.id === effectiveSelected);
-  const timeline = selected ? store.problemTimelines[selected.id] || [] : [];
+  const selected = filtered.find(p => p.server_id + '-' + p.metric_type === effectiveSelected);
+  const timeline = selected ? store.problemTimelines[selected.server_id + '-' + selected.metric_type] || [] : [];
 
-  useEffect(() => {
-    if (selected && !store.problemTimelines[selected.id]) {
-      fetchProblemTimeline(selected.id);
-    }
-  }, [selected?.id]);
 
   return (
     <div className="page" style={{gridTemplateColumns: '380px 1fr', gridTemplateRows: 'auto 1fr', gap: 12}}>
@@ -45,14 +40,14 @@ export function ProblemsScreen({ currentUser, openIncident }) {
         <div className="card-body" style={{display: 'flex', flexDirection: 'column', gap: 8}}>
           {filtered.length === 0 && <Empty icon="problem">No recurring problems detected (last 24h)</Empty>}
           {filtered.map(p => {
-            const tl = store.problemTimelines[p.id] || [];
+            const tl = store.problemTimelines[p.server_id + '-' + p.metric_type] || [];
             const max = Math.max(...tl.map(t => t.value), 1);
             const sev = p.severity === 'critical' ? 'CRITIC' : p.severity.toUpperCase();
             return (
-              <div key={p.id} className={`problem-card ${effectiveSelected === p.id ? 'selected' : ''}`} onClick={() => setSelectedId(p.id)}>
+              <div key={p.server_id + '-' + p.metric_type} className={`problem-card ${effectiveSelected === p.server_id + '-' + p.metric_type ? 'selected' : ''}`} onClick={() => setSelectedId(p.server_id + '-' + p.metric_type)}>
                 <div className="problem-card-head">
                   <SeverityPill value={sev} />
-                  <span className="dim text-xs mono right">#{p.id}</span>
+                  <span className="dim text-xs mono right">#{p.server_id + '-' + p.metric_type}</span>
                 </div>
                 <div className="problem-card-title">{p.title}</div>
                 <div className="problem-card-occ">
@@ -96,7 +91,7 @@ function ProblemDetail({ problem, timeline, store, openIncident }) {
     <div className="inc-detail">
       <div className="inc-detail-header">
         <div className="row gap-8" style={{marginBottom: 4}}>
-          <span className="inc-detail-id mono">PROBLEM #{problem.id}</span>
+          <span className="inc-detail-id mono">PROBLEM {problem.server_id}-{problem.metric_type.substring(0,3)}</span>
           <span className="dim text-xs">·</span>
           <span className="dim text-xs">first seen {relTime(problem.first_seen)} · last seen {relTime(problem.last_seen)}</span>
         </div>

@@ -436,11 +436,36 @@ CREATE TABLE IF NOT EXISTS notification_log (
     triggered_by INT REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Starea curenta a fiecarui server (online/offline)
--- O singura linie per server, actualizata la fiecare mesaj de status MQTT
 CREATE TABLE IF NOT EXISTS server_status (
     server_id VARCHAR(50) PRIMARY KEY,
     region VARCHAR(50),
     status VARCHAR(20) NOT NULL DEFAULT 'unknown',  -- 'online' / 'offline'
     last_changed TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL, -- 'assignment', 'bridge_call'
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Bridge Calls
+CREATE TABLE IF NOT EXISTS bridge_calls (
+    id SERIAL PRIMARY KEY,
+    incident_id INT REFERENCES incidents(id) ON DELETE CASCADE,
+    created_by INT REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    link TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bridge_call_invites (
+    bridge_call_id INT REFERENCES bridge_calls(id) ON DELETE CASCADE,
+    engineer_id INT REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'accepted', 'declined'
+    PRIMARY KEY (bridge_call_id, engineer_id)
 );

@@ -26,7 +26,7 @@ export const WD = {
   problems: [],
   problemTimelines: {},
   notificationLists: [],
-  notificationLog: [],
+  notifications: [], bridgeInvites: [],
   metricsHistory: {},
   notificationTargetsCache: {},
   health: [],
@@ -108,7 +108,8 @@ export async function refresh() {
   };
   const userScoped = {
     incidents:     authed ? apiFetch('/api/incidents') : null,
-    notifLog:      authed ? apiFetch('/api/notifications/log?limit=200') : null,
+    notifications: authed ? apiFetch('/api/notifications') : null,
+    bridgeInvites: authed ? apiFetch('/api/bridge-calls/invites') : null,
   };
 
   const realKeys = Object.keys(realCalls);
@@ -149,7 +150,8 @@ export async function refresh() {
   if (r.problems.status === 'fulfilled') WD.problems = r.problems.value;
   if (r.notifLists.status === 'fulfilled') WD.notificationLists = r.notifLists.value;
   if (u.incidents.status === 'fulfilled' && u.incidents.value !== null) WD.incidents = u.incidents.value;
-  if (u.notifLog.status === 'fulfilled' && u.notifLog.value !== null) WD.notificationLog = u.notifLog.value;
+  if (u.notifications.status === 'fulfilled' && u.notifications.value !== null) WD.notifications = u.notifications.value;
+  if (u.bridgeInvites.status === 'fulfilled' && u.bridgeInvites.value !== null) WD.bridgeInvites = u.bridgeInvites.value;
 
   if (r.serverStatus.status === 'fulfilled') {
     const fromStatus = r.serverStatus.value.map(s => ({
@@ -234,11 +236,12 @@ export async function patchIncident(id, patch) {
   return res.json();
 }
 
-export async function startBridge(id) {
+export async function startBridge(incidentId, engineerIds) {
   if (!WD.token) throw new Error('Not authenticated');
-  const res = await fetch(WD.base + `/api/incidents/${id}/bridge-call`, {
+  const res = await fetch(WD.base + `/api/incidents/${incidentId}/bridge-call`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${WD.token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify({ engineer_ids: engineerIds }),
     mode: 'cors',
   });
   if (!res.ok) {
@@ -248,6 +251,29 @@ export async function startBridge(id) {
   await refresh();
   return res.json();
 }
+
+export async function markNotificationRead(id) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/notifications/${id}/read`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify({ is_read: true }),
+    mode: 'cors',
+  });
+  await refresh();
+}
+
+export async function respondToBridgeInvite(id, status) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/bridge-calls/invites/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify({ status }),
+    mode: 'cors',
+  });
+  await refresh();
+}
+
 
 export async function assignIncident(id, assigneeId) {
   if (!WD.token) throw new Error('Not authenticated');

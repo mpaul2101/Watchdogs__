@@ -11,8 +11,8 @@ export function Topbar({ currentUser, onLogout, setRoute, onSettings }) {
   const criticOpen = store.incidents.filter(i => (i.status === 'OPEN' || i.status === 'IN_PROGRESS') && i.severity === 'CRITIC').length;
   const onlineServers = store.servers.filter(s => s.status === 'online').length;
   const totalServers = store.servers.length;
-  const myNotifs = store.notificationLog.filter(n => n.user_id === currentUser.id).slice(0, 5);
-  const unreadNotifs = myNotifs.length;
+  const myNotifs = (store.notifications || []).slice(0, 5);
+  const unreadNotifs = myNotifs.filter(n => !n.is_read).length;
 
   const conn = store.connection;
   const connClass = conn.status === 'connected' ? 'pill-ok' : conn.status === 'connecting' ? 'pill-warn' : 'sev-critic';
@@ -72,10 +72,10 @@ export function Topbar({ currentUser, onLogout, setRoute, onSettings }) {
           <div className="dropdown-section-title">Recent notifications</div>
           {myNotifs.length === 0 && <div className="empty" style={{padding: 24}}>No notifications</div>}
           {myNotifs.map(n => (
-            <div key={n.id} className="dropdown-item" onClick={() => { setRoute('notifications'); setOpenNotif(false); }}>
+            <div key={n.id} className="dropdown-item" onClick={() => { setRoute('notifications'); setOpenNotif(false); }} style={{ opacity: n.is_read ? 0.6 : 1 }}>
               <div className="col" style={{flex: 1, gap: 2}}>
-                <div style={{fontSize: 12, fontWeight: 500}}>{n.rendered_subject}</div>
-                <div className="meta">{n.list_name} · {relTime(n.sent_at)}</div>
+                <div style={{fontSize: 12, fontWeight: 500}}>{n.message}</div>
+                <div className="meta">{n.type} · {relTime(n.created_at)}</div>
               </div>
             </div>
           ))}

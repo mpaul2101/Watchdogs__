@@ -76,7 +76,6 @@ export function IncidentsScreen({ currentUser }) {
               <TableCell>Title</TableCell>
               <TableCell>Assignee</TableCell>
               <TableCell>Status</TableCell>
-              {isAdmin && <TableCell align="right">Admin Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -126,20 +125,6 @@ export function IncidentsScreen({ currentUser }) {
                     <TableCell>
                       <Chip size="small" variant="outlined" label={incident.status} />
                     </TableCell>
-                    {isAdmin && (
-                      <TableCell align="right">
-                        <Button 
-                          variant="outlined" 
-                          size="small" 
-                          startIcon={<PhoneIcon />}
-                          onClick={() => handleBridgeCall(incident.id)}
-                          disabled={incident.bridge_status === 'Active'}
-                          color={incident.bridge_status === 'Active' ? 'success' : 'primary'}
-                        >
-                          {incident.bridge_status === 'Active' ? 'Bridge Active' : 'Create Bridge & Notify'}
-                        </Button>
-                      </TableCell>
-                    )}
                   </TableRow>
                 );
               })
