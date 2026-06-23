@@ -2,19 +2,19 @@ version: '3.8'
 
 services:
   mosquitto:
-    image: eclipse-mosquitto:latest
+    image: docker.io/library/eclipse-mosquitto:latest
     container_name: nokia_mosquitto
     ports:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ./mosquitto/config:/mosquitto/config:Z
+      - ./mosquitto/data:/mosquitto/data:Z
+      - ./mosquitto/log:/mosquitto/log:Z
     restart: unless-stopped
 
   postgres:
-    image: postgres:latest
+    image: docker.io/library/postgres:latest
     container_name: watchdogs_db
     restart: always
     environment:
@@ -24,4 +24,4 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:Z

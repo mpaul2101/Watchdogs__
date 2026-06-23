@@ -236,9 +236,25 @@ export async function patchIncident(id, patch) {
 
 export async function startBridge(id) {
   if (!WD.token) throw new Error('Not authenticated');
-  const res = await fetch(WD.base + `/api/incidents/${id}/bridge`, {
+  const res = await fetch(WD.base + `/api/incidents/${id}/bridge-call`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${WD.token}` },
+    mode: 'cors',
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`${res.status}: ${body}`);
+  }
+  await refresh();
+  return res.json();
+}
+
+export async function assignIncident(id, assigneeId) {
+  if (!WD.token) throw new Error('Not authenticated');
+  const res = await fetch(WD.base + `/api/incidents/${id}/assign`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WD.token}` },
+    body: JSON.stringify({ assignee_id: assigneeId }),
     mode: 'cors',
   });
   if (!res.ok) {

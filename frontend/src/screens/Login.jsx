@@ -1,6 +1,19 @@
 import React, { useState } from 'react';
 import { login, useStore } from '../api.js';
-import { Icon } from '../components/Common.jsx';
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  TextField, 
+  Button, 
+  Paper, 
+  Alert, 
+  AppBar, 
+  Toolbar, 
+  Chip,
+  IconButton
+} from '@mui/material';
+import { Settings as SettingsIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 
 export function LoginScreen({ onSettings, onRetry }) {
   const store = useStore();
@@ -10,7 +23,7 @@ export function LoginScreen({ onSettings, onRetry }) {
   const [busy, setBusy] = useState(false);
 
   const conn = store.connection;
-  const connClass = conn.status === 'connected' ? 'pill-ok' : conn.status === 'connecting' ? 'pill-warn' : 'sev-critic';
+  const connStatusColor = conn.status === 'connected' ? 'success' : conn.status === 'connecting' ? 'warning' : 'error';
   const connLabel = conn.status === 'connected' ? 'API' : conn.status === 'connecting' ? 'connecting' : 'offline';
 
   const handleSubmit = async (event) => {
@@ -27,87 +40,102 @@ export function LoginScreen({ onSettings, onRetry }) {
   };
 
   return (
-    <div className="app" style={{gridTemplateColumns: '1fr', gridTemplateAreas: '"topbar" "main"'}}>
-      <header className="topbar">
-        <div className="brand" style={{borderRight: 'none', padding: 0, gap: 10}}>
-          <div className="brand-mark"></div>
-          <div className="brand-name">Watchdogs<span>__</span></div>
-        </div>
-        <div className="topbar-spacer"></div>
-        <button className={`pill ${connClass}`} style={{cursor: 'pointer', border: 'none'}} onClick={onSettings} title={`${store.base} · ${conn.status}`}>
-          <span className="dot"></span>{connLabel}
-        </button>
-      </header>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'white' }}>
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+            Watchdogs<span style={{ color: '#aaa' }}>__</span>
+          </Typography>
+          <Chip 
+            label={connLabel} 
+            color={connStatusColor} 
+            size="small" 
+            onClick={onSettings}
+            sx={{ cursor: 'pointer' }}
+          />
+        </Toolbar>
+      </AppBar>
 
-      <main className="main center">
-        <div className="col gap-16" style={{maxWidth: 520, padding: 24, textAlign: 'center', alignItems: 'center'}}>
-          <div className="text-lg fw-600">Sign in</div>
-          <div className="dim text-sm">Use your Watchdogs account to continue.</div>
+      <Container component="main" maxWidth="sm" sx={{ mt: 8, mb: 4, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Typography component="h1" variant="h4" fontWeight="bold" gutterBottom>
+          Sign in
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+          Use your Watchdogs account to continue.
+        </Typography>
 
-          <form className="card" onSubmit={handleSubmit} style={{width: '100%', textAlign: 'left', padding: 18}}>
-            <div className="field">
-              <label className="field-label">Email</label>
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@watchdogs.local"
-                autoComplete="username"
-                required
-              />
-            </div>
-
-            <div className="field" style={{marginTop: 12}}>
-              <label className="field-label">Password</label>
-              <input
-                className="input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-              />
-            </div>
+        <Paper elevation={2} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
+          <Box component="form" onSubmit={handleSubmit}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="email"
+              label="Email Address"
+              name="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="Password"
+              type="password"
+              id="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
             {error && (
-              <div className="card" style={{background: 'var(--critic-bg)', border: '1px solid rgba(255,77,94,0.3)', marginTop: 12, padding: 10, color: 'var(--critic)'}}>
+              <Alert severity="error" sx={{ mt: 2 }}>
                 {error}
-              </div>
+              </Alert>
             )}
 
-            <div className="row gap-8" style={{marginTop: 16, justifyContent: 'space-between'}}>
-              <button className="btn btn-primary" type="submit" disabled={busy}>
-                {busy ? 'Signing in…' : 'Sign in'}
-              </button>
-              <div className="row gap-8">
-                <button className="btn" type="button" onClick={onRetry}>
-                  <Icon name="refresh" size={12} /> Retry
-                </button>
-                <button className="btn" type="button" onClick={onSettings}>
-                  <Icon name="settings" size={12} /> API URL
-                </button>
-              </div>
-            </div>
-          </form>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={busy}
+                size="large"
+                sx={{ px: 4 }}
+              >
+                {busy ? 'Signing in...' : 'Sign In'}
+              </Button>
+              <Box>
+                <IconButton onClick={onRetry} title="Retry API connection" size="small" sx={{ mr: 1 }}>
+                  <RefreshIcon />
+                </IconButton>
+                <IconButton onClick={onSettings} title="Settings" size="small">
+                  <SettingsIcon />
+                </IconButton>
+              </Box>
+            </Box>
+          </Box>
+        </Paper>
 
-          {conn.status === 'disconnected' && (
-            <div className="card" style={{background: 'var(--bg-elev)', padding: 14, textAlign: 'left', width: '100%'}}>
-              <div className="field-label" style={{marginBottom: 6}}>Backend unreachable</div>
-              <div className="dim text-sm" style={{marginBottom: 8}}>{conn.error}</div>
-              <div className="mono text-xs" style={{color: 'var(--text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.7}}>
-                <span style={{color: 'var(--text-3)'}}># 1. Database + broker</span>{'\n'}
-                docker compose up -d{'\n\n'}
-                <span style={{color: 'var(--text-3)'}}># 2. API</span>{'\n'}
-                cd backend && uvicorn api:app --reload{'\n'}
-              </div>
-            </div>
-          )}
+        {conn.status === 'disconnected' && (
+          <Alert severity="warning" sx={{ mt: 4, width: '100%' }}>
+            <Typography variant="subtitle2" fontWeight="bold">Backend unreachable</Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>{conn.error}</Typography>
+            <Box sx={{ bgcolor: 'rgba(0,0,0,0.05)', p: 1, borderRadius: 1, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+              # 1. Database + broker<br/>
+              docker compose up -d<br/><br/>
+              # 2. API<br/>
+              cd backend && uvicorn api:app --reload
+            </Box>
+          </Alert>
+        )}
 
-          <div className="dim text-xs mono">target: {store.base}</div>
-        </div>
-      </main>
-    </div>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 4, fontFamily: 'monospace' }}>
+          target: {store.base}
+        </Typography>
+      </Container>
+    </Box>
   );
 }

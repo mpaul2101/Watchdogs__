@@ -9,6 +9,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <div id="error-overlay" style="position:fixed;top:0;left:0;background:rgba(255,0,0,0.8);color:white;z-index:9999;padding:20px;font-family:monospace;white-space:pre-wrap;display:none;"></div>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        document.getElementById('error-overlay').style.display = 'block';
+        document.getElementById('error-overlay').innerText += message + '\\n';
+      };
+      window.onunhandledrejection = function(event) {
+        document.getElementById('error-overlay').style.display = 'block';
+        document.getElementById('error-overlay').innerText += 'Unhandled Rejection: ' + event.reason + '\\n';
+      };
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

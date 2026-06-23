@@ -11,7 +11,7 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
 # Incarca configuratia din .env (fiecare masina are valorile ei)
-load_dotenv()
+load_dotenv(override=True)
 
 SERVER_ID = os.getenv("SERVER_ID", "unknown-server")
 REGION = os.getenv("REGION", "unknown-region")

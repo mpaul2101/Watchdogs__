@@ -84,8 +84,8 @@ def handle_status_message(msg):
                     """
                     INSERT INTO incidents
                       (server_id, metric_type, title, severity, status,
-                       triage_status, bridge_required)
-                    VALUES (%s, 'NODE_DOWN', %s, 'CRITIC', 'OPEN', 'Unassigned', TRUE)
+                       bridge_required)
+                    VALUES (%s, 'NODE_DOWN', %s, 'CRITIC', 'OPEN', TRUE)
                     RETURNING id
                     """,
                     (server_id, f"[CRITIC] Server {server_id} este offline"),
