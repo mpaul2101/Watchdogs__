@@ -374,7 +374,7 @@ def start_bridge_call(
     if role != "admin":
         raise HTTPException(status_code=403, detail="Only Admin can start a bridge call")
 
-    bridge_url = f"https://meet.google.com/watchdogs-bridge-{incident_id}"
+    bridge_url = f"https://meet.google.com/lookup/watchdogs-{incident_id}"
 
     conn = get_db_connection()
     db_cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -672,6 +672,26 @@ def update_bridge_invite(bridge_call_id: int, body: InviteUpdate, current_user: 
             (body.status, bridge_call_id, current_user["id"])
         )
         row = db_cursor.fetchone()
+        
+        if body.status == "accepted":
+            # Fetch bridge call details to notify admin
+            db_cursor.execute("SELECT created_by, link, incident_id FROM bridge_calls WHERE id = %s", (bridge_call_id,))
+            bridge_call = db_cursor.fetchone()
+            if bridge_call:
+                admin_id = bridge_call["created_by"]
+                incident_id = bridge_call["incident_id"]
+                link = bridge_call["link"]
+                eng_name = current_user.get("username", "An engineer")
+                
+                # Insert notification for admin
+                db_cursor.execute(
+                    """
+                    INSERT INTO notifications (user_id, message, type)
+                    VALUES (%s, %s, 'bridge_call')
+                    """,
+                    (admin_id, f"{eng_name} accepted the Bridge Call for incident #{incident_id}. Link: {link}")
+                )
+        
         conn.commit()
         return row
     finally:

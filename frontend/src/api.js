@@ -39,7 +39,7 @@ export const WD = {
   connection: { status: 'connecting', error: null, lastFetch: null, lastSuccess: null },
 
   // === config ===
-  base: localStorage.getItem(LS_BASE) || 'http://localhost:8000',
+  base: localStorage.getItem(LS_BASE) || `http://${window.location.hostname}:8000`,
 
   subscribe,
 };
